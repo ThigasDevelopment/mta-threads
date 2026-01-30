@@ -1,6 +1,6 @@
 ---@param miliseconds number
 ---@return void
-local function sleep (miliseconds)
+function sleep (miliseconds)
 	if (not tonumber (miliseconds)) then
 		miliseconds = 0;
 	end
