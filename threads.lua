@@ -28,6 +28,10 @@ local THREADS_PRIORITYS = {
 ---@field nextId number
 ---@field priority 'low' | 'normal' | 'high'
 ---@field timer userdata | nil
+---@field add fun(self: Threads, func: fun(...: any): any, ...: any): number
+---@field remove fun(self: Threads, id: number): boolean
+---@field pause fun(self: Threads, id: number): boolean
+---@field resume fun(self: Threads, id: number): boolean
 Threads = {
 	---@param self Threads
 	---@return Threads
@@ -77,6 +81,42 @@ Threads = {
 		end
 
 		self.threads[id] = nil;
+		return true;
+	end,
+
+	---@param self Threads
+	---@param id number
+	---@return boolean
+	pause = function (self, id)
+		---@type Thread
+		local thread = self.threads[id];
+		if (not thread) then
+			return false;
+		end
+
+		if (thread.paused) then
+			return false;
+		end
+
+		thread.paused = true;
+		return true;
+	end,
+
+	---@param self Threads
+	---@param id number
+	---@return boolean
+	resume = function (self, id)
+		---@type Thread
+		local thread = self.threads[id];
+		if (not thread) then
+			return false;
+		end
+
+		if (not thread.paused) then
+			return false;
+		end
+
+		thread.paused = false;
 		return true;
 	end,
 };
