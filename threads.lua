@@ -252,7 +252,6 @@ Threads = {
 
 			while (frames < THREADS_PRIORITYS[self.priority].frame) do
 				local status = coroutine.status (thread.routine);
-				
 				if (status == 'dead') then
 					self:remove (self.currentId);
 					break
