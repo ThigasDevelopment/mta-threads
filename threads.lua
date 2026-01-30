@@ -37,6 +37,7 @@ local THREADS_PRIORITYS = {
 ---@field pause fun(self: Threads, id: number): boolean
 ---@field resume fun(self: Threads, id: number): boolean
 ---@field process fun(self: Threads): void
+---@field setType fun(self: Threads, style: 'concurrent' | 'sequential'): boolean
 ---@field setPriority fun(self: Threads, priority: 'low' | 'normal' | 'high'): boolean
 Threads = {
 	---@param self Threads
