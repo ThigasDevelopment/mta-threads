@@ -1,10 +1,7 @@
 ---@param miliseconds number
 ---@return void
 function sleep (miliseconds)
-	if (not tonumber (miliseconds)) then
-		miliseconds = 0;
-	end
-
+	miliseconds = tonumber (miliseconds) or 0;
 	if (miliseconds < 1) then
 		coroutine.yield ();
 		return
