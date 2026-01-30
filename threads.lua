@@ -13,9 +13,9 @@ end
 ---@field normal { pulsing: number, frame: number }
 ---@field high { pulsing: number, frame: number }
 local THREADS_PRIORITYS = {
-	low = { pulsing = 200, frame = 10 },
-	normal = { pulsing = 100, frame = 20 },
-	high = { pulsing = 50, frame = 40 },
+	low = { pulsing = 250, frame = 8 },
+	normal = { pulsing = 100, frame = 15 },
+	high = { pulsing = 50, frame = 25 },
 };
 
 ---@class Thread
@@ -31,7 +31,7 @@ local THREADS_PRIORITYS = {
 ---@field type 'concurrent' | 'sequential'
 ---@field priority 'low' | 'normal' | 'high'
 ---@field timer userdata | nil
----@field add fun(self: Threads, func: fun(...: any): any, ...: any): number
+---@field add fun(self: Threads, func: fun(self: Threads, ...: any): any, ...: any): number
 ---@field remove fun(self: Threads, id: number): boolean
 ---@field start fun(self: Threads): boolean
 ---@field pause fun(self: Threads, id: number): boolean
@@ -56,7 +56,7 @@ Threads = {
 	end,
 
 	---@param self Threads
-	---@param func fun(...: any): any
+	---@param func fun(self: Threads, ...: any): any
 	---@param ... any
 	---@return number
 	add = function (self, func, ...)
@@ -170,10 +170,10 @@ Threads = {
 
 					local success, error;
 					if (not thread.started) then
-						success, error = coroutine.resume (thread.routine, unpack (thread.arguments));
+						success, error = coroutine.resume (thread.routine, self, unpack (thread.arguments));
 						thread.started = true;
 					else
-						success, error = coroutine.resume (thread.routine);
+						success, error = coroutine.resume (thread.routine, self);
 					end
 
 					if (not success) then
@@ -225,10 +225,10 @@ Threads = {
 
 				local success, error;
 				if (not thread.started) then
-					success, error = coroutine.resume (thread.routine, unpack (thread.arguments));
+					success, error = coroutine.resume (thread.routine, self, unpack (thread.arguments));
 					thread.started = true;
 				else
-					success, error = coroutine.resume (thread.routine);
+					success, error = coroutine.resume (thread.routine, self);
 				end
 
 				if (not success) then
