@@ -313,7 +313,7 @@ Threads = {
 	end,
 
 	---@param self Threads
-	---@return 'low' | 'normal' | 'high'
+	---@return 'low' | 'normal' | 'high' | 'extreme'
 	getPriority = function (self)
 		return self.priority;
 	end,
