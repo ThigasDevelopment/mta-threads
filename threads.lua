@@ -41,8 +41,8 @@ local THREADS_PRIORITYS = {
 ---@field setPriority fun(self: Threads, priority: 'low' | 'normal' | 'high'): boolean
 Threads = {
 	---@param self Threads
-	---@param type 'concurrent' | 'sequential'
-	---@param priority 'low' | 'normal' | 'high'
+	---@param type? 'concurrent' | 'sequential'
+	---@param priority? 'low' | 'normal' | 'high'
 	---@return Threads
 	new = function (type, priority)
 		local self = setmetatable ({ }, { __index = Threads });
