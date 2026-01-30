@@ -20,6 +20,7 @@ end
 ---@field low { pulsing: number, frame: number }
 ---@field normal { pulsing: number, frame: number }
 ---@field high { pulsing: number, frame: number }
+---@field extreme { pulsing: number, frame: number }
 local THREADS_PRIORITYS = {
 	low = { pulsing = 250, frame = 8 },
 	normal = { pulsing = 100, frame = 15 },
