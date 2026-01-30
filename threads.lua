@@ -186,6 +186,11 @@ Threads = {
 					activeThread = true;
 				end
 			end
+
+			if (not activeThread) and (isTimer (self.timer)) then
+				killTimer (self.timer);
+				self.timer = nil;
+			end
 		elseif (theType == 'sequential') then
 			if (not self.threads[self.currentId]) then
 				self.currentId = -1;
