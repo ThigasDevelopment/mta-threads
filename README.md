@@ -367,33 +367,232 @@ end);
 
 ## API Reference
 
-### Threads.new(type, priority)
-Creates a new thread manager.
-- **type**: `'concurrent'` or `'sequential'` (default: `'concurrent'`)
-- **priority**: `'low'`, `'normal'`, or `'high'` (default: `'normal'`)
+### Constructor
 
-### threads:add(func, ...)
-Adds a new thread. Returns thread ID.
-- **func**: Function to execute (receives `self` as first parameter)
-- **...**: Additional arguments passed to function
+#### `Threads.new([type], [priority])`
 
-### threads:remove(id)
-Removes a thread by ID.
+Creates a new task manager instance.
 
-### threads:pause(id)
-Pauses a thread.
+**Parameters:**
+- `type` (string, optional): Execution mode
+  - `'concurrent'` - Tasks execute interleaved (default)
+  - `'sequential'` - Tasks execute one at a time (queue)
+- `priority` (string, optional): Performance profile
+  - `'low'` - 250ms ticks, 8 frames/tick
+  - `'normal'` - 100ms ticks, 15 frames/tick (default)
+  - `'high'` - 50ms ticks, 25 frames/tick
 
-### threads:resume(id)
-Resumes a paused thread.
+**Returns:** `Threads` instance
 
-### threads:setType(type)
-Changes execution mode (`'concurrent'` or `'sequential'`).
+**Example:**
+```lua
+local tasks = Threads.new('sequential', 'high');
+```
 
-### threads:setPriority(priority)
-Changes priority (`'low'`, `'normal'`, or `'high'`).
+---
 
-### sleep(milliseconds)
-Pauses thread execution for specified time (global function).
+### Task Management
+
+#### `tasks:add(func, ...)`
+
+Adds a new task to the manager.
+
+**Parameters:**
+- `func` (function): Task function to execute
+  - First parameter is always `self` (the Threads instance)
+  - Must call `coroutine.yield()` or `sleep()` to cooperate
+- `...` (any): Additional arguments passed to the function
+
+**Returns:** `number` - Unique task ID
+
+**Example:**
+```lua
+local taskID = tasks:add(function(self, name, value)
+    for i = 1, 100 do
+        print(name, value, i);
+        coroutine.yield();
+    end
+end, "MyTask", 42);
+```
+
+---
+
+#### `tasks:remove(id)`
+
+Removes a task from the manager.
+
+**Parameters:**
+- `id` (number): Task ID returned by `add()`
+
+**Returns:** `boolean` - `true` if removed, `false` if not found
+
+**Example:**
+```lua
+local id = tasks:add(myFunction);
+tasks:remove(id); -- Remove task
+```
+
+---
+
+### Task Control
+
+#### `tasks:pause(id)`
+
+Pauses a running task.
+
+**Parameters:**
+- `id` (number): Task ID to pause
+
+**Returns:** `boolean` - `true` if paused, `false` if not found or already paused
+
+**Example:**
+```lua
+tasks:pause(taskID);
+-- Task stops executing but remains in queue
+```
+
+---
+
+#### `tasks:resume(id)`
+
+Resumes a paused task.
+
+**Parameters:**
+- `id` (number): Task ID to resume
+
+**Returns:** `boolean` - `true` if resumed, `false` if not found or not paused
+
+**Example:**
+```lua
+tasks:resume(taskID);
+-- Task continues from where it yielded
+```
+
+---
+
+### Configuration
+
+#### `tasks:setType(type)`
+
+Changes the execution mode at runtime.
+
+**Parameters:**
+- `type` (string): Execution mode
+  - `'concurrent'` - Switch to interleaved execution
+  - `'sequential'` - Switch to queue-based execution
+
+**Returns:** `boolean` - `true` if changed, `false` if invalid or same as current
+
+**Example:**
+```lua
+tasks:setType('sequential');
+```
+
+---
+
+#### `tasks:getType()`
+
+Gets the current execution mode.
+
+**Returns:** `string` - `'concurrent'` or `'sequential'`
+
+**Example:**
+```lua
+local mode = tasks:getType();
+print('Current mode: ' .. mode);
+```
+
+---
+
+#### `tasks:setPriority(priority)`
+
+Changes the priority level at runtime.
+
+**Parameters:**
+- `priority` (string): Performance profile
+  - `'low'` - Less frequent, fewer frames
+  - `'normal'` - Balanced
+  - `'high'` - More frequent, more frames
+
+**Returns:** `boolean` - `true` if changed, `false` if invalid or same as current
+
+**Note:** Automatically restarts the internal timer with new settings.
+
+**Example:**
+```lua
+tasks:setPriority('high');
+```
+
+---
+
+#### `tasks:getPriority()`
+
+Gets the current priority level.
+
+**Returns:** `string` - `'low'`, `'normal'`, or `'high'`
+
+**Example:**
+```lua
+local priority = tasks:getPriority();
+print('Current priority: ' .. priority);
+```
+
+---
+
+#### `tasks:clear()`
+
+Removes all tasks and stops the timer.
+
+**Returns:** `boolean` - `true` if tasks were cleared, `false` if already empty
+
+**Example:**
+```lua
+tasks:clear(); -- Remove all tasks
+```
+
+---
+
+### Global Functions
+
+#### `sleep(milliseconds)`
+
+Pauses task execution for a specified duration.
+
+**Parameters:**
+- `milliseconds` (number): Time to sleep in milliseconds
+
+**Returns:** `void`
+
+**Note:** Must be called from within a task function. Uses `getTickCount()` internally.
+
+**Example:**
+```lua
+tasks:add(function(self)
+    print('Start');
+    sleep(1000); -- Wait 1 second
+    print('After 1 second');
+    sleep(500);  -- Wait 0.5 seconds
+    print('Done');
+end);
+```
+
+---
+
+### Internal Methods
+
+#### `tasks:start()`
+
+Starts the internal timer (automatically called by `add()`).
+
+**Returns:** `boolean` - `false` if timer already running
+
+---
+
+#### `tasks:process()`
+
+Internal method that processes tasks (called by timer).
+
+**Do not call manually** - used internally by the timer system.
 
 ## License
 
