@@ -24,6 +24,7 @@ local THREADS_PRIORITYS = {
 	low = { pulsing = 250, frame = 8 },
 	normal = { pulsing = 100, frame = 15 },
 	high = { pulsing = 50, frame = 25 },
+	extreme = { pulsing = 0, frame = 50 },
 };
 
 ---@class Thread
@@ -37,7 +38,7 @@ local THREADS_PRIORITYS = {
 ---@field nextId number
 ---@field currentId number
 ---@field type 'concurrent' | 'sequential'
----@field priority 'low' | 'normal' | 'high'
+---@field priority 'low' | 'normal' | 'high' | 'extreme'
 ---@field timer userdata | nil
 ---@field add fun(self: Threads, func: fun(self: Threads, ...: any): any, ...: any): number
 ---@field remove fun(self: Threads, id: number): boolean
@@ -317,7 +318,7 @@ Threads = {
 	end,
 
 	---@param self Threads
-	---@param priority 'low' | 'normal' | 'high'
+	---@param priority 'low' | 'normal' | 'high' | 'extreme'
 	---@return boolean
 	setPriority = function (self, priority)
 		local priorityType = type (priority);
