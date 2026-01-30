@@ -33,6 +33,7 @@ local THREADS_PRIORITYS = {
 ---@field start fun(self: Threads): boolean
 ---@field pause fun(self: Threads, id: number): boolean
 ---@field resume fun(self: Threads, id: number): boolean
+---@field process fun(self: Threads): void
 ---@field setPriority fun(self: Threads, priority: 'low' | 'normal' | 'high'): boolean
 Threads = {
 	---@param self Threads
@@ -138,6 +139,44 @@ Threads = {
 
 		self:start ();
 		return true;
+	end,
+
+	---@param self Threads
+	---@return void
+	process = function (self)
+		local frames = 0;
+
+		local activeThreads = false;
+		---@param thread Thread
+		for id, thread in pairs (self.threads) do
+			if (frames >= THREADS_PRIORITYS[self.priority].frame) then
+				activeThreads = true;
+
+				break
+			end
+
+			local status = coroutine.status (thread.routine);
+			if (status == 'dead') then
+				self:remove (id);
+			elseif (not thread.paused) then
+				activeThreads = true;
+
+				local success, error = coroutine.resume (thread.routine, unpack (thread.arguments));
+				if (not success) then
+					error ('[Threads] Thread ID ' .. id .. ' error: ' .. tostring (error));
+					self:remove (id);
+				else
+					frames = (frames + 1);
+				end
+			else
+				activeThreads = true;
+			end
+		end
+
+		if (not activeThreads) and (isTimer (self.timer)) then
+			killTimer (self.timer);
+			self.timer = nil;
+		end
 	end,
 
 	---@param self Threads
