@@ -1,13 +1,27 @@
-# MTA Threads
+# MTA Async Task Manager
 
-A powerful, lightweight coroutine-based threading system for MTA:SA servers. Execute heavy tasks without blocking the server using cooperative multithreading or sequential task queues.
+A lightweight **coroutine-based async task system** for MTA:SA servers. Distribute heavy workloads across multiple frames without blocking the server using **cooperative multitasking**.
+
+> **⚠️ Important:** This is **not true multithreading** or parallel execution. It uses Lua coroutines for cooperative task scheduling - only one task executes at a time, but control is yielded between tasks to prevent server freezing.
+
+## What This Is
+
+- ✅ **Coroutine-based**: Uses Lua's `coroutine` API for cooperative multitasking
+- ✅ **Async execution**: Tasks yield control and resume later (not parallel)
+- ✅ **Frame distribution**: Spreads heavy work across multiple server ticks
+- ✅ **Non-blocking**: Prevents server lag by breaking up long operations
+
+## What This Is NOT
+
+- ❌ **Not real threads**: No parallel execution or CPU core utilization
+- ❌ **Not simultaneous**: Only one task executes at any given moment
+- ❌ **Not preemptive**: Tasks must manually yield control (cooperative)
 
 ## Features
 
 - ✅ **Two execution modes**: Concurrent (interleaved) and Sequential (queue-based)
 - ✅ **Priority system**: Low, Normal, High with configurable performance profiles
-- ✅ **Thread control**: Pause, resume, and remove threads dynamically
-- ✅ **Non-blocking**: Prevents server lag by distributing work across frames
+- ✅ **Task control**: Pause, resume, and remove tasks dynamically
 - ✅ **Simple API**: Easy to use with coroutines and sleep helpers
 - ✅ **Error handling**: Automatic error catching and cleanup
 
@@ -19,23 +33,23 @@ A powerful, lightweight coroutine-based threading system for MTA:SA servers. Exe
 
 ## Basic Usage
 
-### Creating a Thread Manager
+### Creating a Task Manager
 
 ```lua
 -- Create with defaults (concurrent mode, normal priority)
-local threads = Threads.new();
+local tasks = Threads.new();
 
 -- Or specify mode and priority
-local threads = Threads.new('sequential', 'high');
+local tasks = Threads.new('sequential', 'high');
 ```
 
-### Adding Threads
+### Adding Tasks
 
 ```lua
-threads:add(function(self)
+tasks:add(function(self)
     for i = 1, 100 do
         print('Processing item ' .. i);
-        coroutine.yield(); -- Release control
+        coroutine.yield(); -- Yield control cooperatively
     end
 end);
 ```
@@ -44,68 +58,68 @@ end);
 
 ### Concurrent Mode (Default)
 
-Multiple threads execute **interleaved** - all threads progress simultaneously.
+Multiple tasks execute **interleaved** - tasks appear to progress simultaneously by switching between them cooperatively (not parallel!).
 
 ```lua
-local threads = Threads.new('concurrent', 'normal');
+local tasks = Threads.new('concurrent', 'normal');
 
-threads:add(function(self)
+tasks:add(function(self)
     for i = 1, 5 do
-        print('[Thread A] Step ' .. i);
+        print('[Task A] Step ' .. i);
         sleep(500);
     end
 end);
 
-threads:add(function(self)
+tasks:add(function(self)
     for i = 1, 5 do
-        print('[Thread B] Step ' .. i);
+        print('[Task B] Step ' .. i);
         sleep(500);
     end
 end);
 
--- Output (interleaved):
--- [Thread A] Step 1
--- [Thread B] Step 1
--- [Thread A] Step 2
--- [Thread B] Step 2
+-- Output (interleaved, not parallel):
+-- [Task A] Step 1
+-- [Task B] Step 1
+-- [Task A] Step 2
+-- [Task B] Step 2
 -- ...
 ```
 
 ### Sequential Mode
 
-Threads execute **one at a time** (FIFO queue) - each thread completes before the next starts.
+Tasks execute **one at a time** (FIFO queue) - each task completes before the next starts.
 
 ```lua
-local threads = Threads.new('sequential', 'normal');
+local tasks = Threads.new('sequential', 'normal');
 
-threads:add(function(self)
+tasks:add(function(self)
     for i = 1, 5 do
-        print('[Thread A] Step ' .. i);
+        print('[Task A] Step ' .. i);
         sleep(500);
     end
 end);
 
-threads:add(function(self)
+tasks:add(function(self)
     for i = 1, 5 do
-        print('[Thread B] Step ' .. i);
+        print('[Task B] Step ' .. i);
         sleep(500);
     end
 end);
 
 -- Output (sequential):
--- [Thread A] Step 1
--- [Thread A] Step 2
--- [Thread A] Step 3
--- [Thread A] Step 4
--- [Thread A] Step 5
--- [Thread B] Step 1
--- [Thread B] Step 2
+-- [Task A] Step 1
+-- [Task A] Step 2
+-- [Task A] Step 3
+-- [Task A] Step 4
+-- [Task A] Step 5
+-- [Task B] Step 1
+-- [Task B] Step 2
 -- ...
 ```
 
 ## Priority System
 
-Priorities control how often threads are processed and how many operations per tick.
+Priorities control how often tasks are processed and how many yields per tick.
 
 | Priority | Tick Rate | Max Frames/Tick | Best For |
 |----------|-----------|-----------------|----------|
