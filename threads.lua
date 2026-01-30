@@ -13,9 +13,9 @@ end
 ---@field normal { pulsing: number, frame: number }
 ---@field high { pulsing: number, frame: number }
 local THREADS_PRIORITYS = {
-	low = { pulsing = 50, frame = 10 },
+	low = { pulsing = 200, frame = 10 },
 	normal = { pulsing = 100, frame = 20 },
-	high = { pulsing = 200, frame = 40 },
+	high = { pulsing = 50, frame = 40 },
 };
 
 ---@class Thread
@@ -41,13 +41,15 @@ local THREADS_PRIORITYS = {
 ---@field setPriority fun(self: Threads, priority: 'low' | 'normal' | 'high'): boolean
 Threads = {
 	---@param self Threads
+	---@param type 'concurrent' | 'sequential'
+	---@param priority 'low' | 'normal' | 'high'
 	---@return Threads
-	new = function ()
+	new = function (type, priority)
 		local self = setmetatable ({ }, { __index = Threads });
 		self.threads = { };
 
 		self.nextId, self.currentId = 0, -1;
-		self.type, self.priority = 'concurrent', 'normal';
+		self.type, self.priority = (type or 'concurrent'), (priority or 'normal');
 
 		self.timer = nil;
 		return self;
