@@ -1,8 +1,16 @@
 ---@param miliseconds number
 ---@return void
 local function sleep (miliseconds)
-	local current = getTickCount ();
+	if (not tonumber (miliseconds)) then
+		miliseconds = 0;
+	end
 
+	if (miliseconds < 1) then
+		coroutine.yield ();
+		return
+	end
+
+	local current = getTickCount ();
 	repeat
 		coroutine.yield ();
 	until (getTickCount () - current) >= miliseconds;
@@ -33,11 +41,14 @@ local THREADS_PRIORITYS = {
 ---@field timer userdata | nil
 ---@field add fun(self: Threads, func: fun(self: Threads, ...: any): any, ...: any): number
 ---@field remove fun(self: Threads, id: number): boolean
+---@field clear fun(self: Threads): boolean
 ---@field start fun(self: Threads): boolean
 ---@field pause fun(self: Threads, id: number): boolean
 ---@field resume fun(self: Threads, id: number): boolean
 ---@field process fun(self: Threads): void
+---@field getType fun(self: Threads): 'concurrent' | 'sequential'
 ---@field setType fun(self: Threads, style: 'concurrent' | 'sequential'): boolean
+---@field getPriority fun(self: Threads): 'low' | 'normal' | 'high'
 ---@field setPriority fun(self: Threads, priority: 'low' | 'normal' | 'high'): boolean
 Threads = {
 	---@param self Threads
@@ -93,6 +104,25 @@ Threads = {
 		end
 
 		self.threads[id] = nil;
+		return true;
+	end,
+
+	---@param self Threads
+	---@return boolean
+	clear = function (self)
+		local hasNext = (next (self.threads) ~= nil);
+		if (not hasNext) then
+			return false;
+		end
+
+		self.threads = { };
+		self.currentId = -1;
+
+		if (isTimer (self.timer)) then
+			killTimer (self.timer);
+		end
+		self.timer = nil;
+
 		return true;
 	end,
 
@@ -252,6 +282,12 @@ Threads = {
 	end,
 
 	---@param self Threads
+	---@return 'concurrent' | 'sequential'
+	getType = function (self)
+		return self.type;
+	end,
+
+	---@param self Threads
 	---@param style 'concurrent' | 'sequential'
 	---@return boolean
 	setType = function (self, style)
@@ -272,6 +308,12 @@ Threads = {
 
 		self.type = style;
 		return true;
+	end,
+
+	---@param self Threads
+	---@return 'low' | 'normal' | 'high'
+	getPriority = function (self)
+		return self.priority;
 	end,
 
 	---@param self Threads
