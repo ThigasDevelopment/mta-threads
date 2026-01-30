@@ -32,6 +32,7 @@ local THREADS_PRIORITYS = {
 ---@field remove fun(self: Threads, id: number): boolean
 ---@field pause fun(self: Threads, id: number): boolean
 ---@field resume fun(self: Threads, id: number): boolean
+---@field setPriority fun(self: Threads, priority: 'low' | 'normal' | 'high'): boolean
 Threads = {
 	---@param self Threads
 	---@return Threads
@@ -117,6 +118,23 @@ Threads = {
 		end
 
 		thread.paused = false;
+		return true;
+	end,
+
+	---@param self Threads
+	---@param priority 'low' | 'normal' | 'high'
+	---@return boolean
+	setPriority = function (self, priority)
+		local priorityType = type (priority);
+		if (priorityType ~= 'string') then
+			return false;
+		end
+
+		if (not THREADS_PRIORITYS[priority]) or (self.priority == priority) then
+			return false;
+		end
+
+		self.priority = priority;
 		return true;
 	end,
 };
