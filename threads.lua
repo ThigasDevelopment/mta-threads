@@ -151,7 +151,7 @@ Threads = {
 		local frames = 0;
 
 		local theType = self.type;
-		if (theType == 'sequential') then
+		if (theType == 'concurrent') then
 			local activeThread = false;
 			for id, thread in pairs (self.threads) do
 				if (frames >= THREADS_PRIORITYS[self.priority].frame) then
