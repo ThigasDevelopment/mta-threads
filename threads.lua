@@ -22,10 +22,12 @@ local THREADS_PRIORITYS = {
 ---@field routine thread
 ---@field arguments table<any>
 ---@field paused boolean
+---@field started boolean
 
 ---@class Threads
 ---@field threads table<number, Thread>
 ---@field nextId number
+---@field currentId number | nil
 ---@field priority 'low' | 'normal' | 'high'
 ---@field timer userdata | nil
 ---@field add fun(self: Threads, func: fun(...: any): any, ...: any): number
@@ -43,6 +45,7 @@ Threads = {
 		self.threads = { };
 
 		self.nextId = 0;
+		self.currentId = nil;
 		self.priority = 'normal';
 
 		self.timer = nil;
@@ -60,6 +63,7 @@ Threads = {
 			arguments = { ... },
 
 			paused = false,
+			started = false,
 		};
 
 		local newId = (self.nextId + 1);
@@ -79,10 +83,6 @@ Threads = {
 		local thread = self.threads[id];
 		if (not thread) then
 			return false;
-		end
-
-		if (type (thread.routine) == 'thread') then
-			coroutine.close (thread.routine);
 		end
 
 		self.threads[id] = nil;
@@ -144,38 +144,65 @@ Threads = {
 	---@param self Threads
 	---@return void
 	process = function (self)
-		local frames = 0;
-
-		local activeThreads = false;
-		---@param thread Thread
-		for id, thread in pairs (self.threads) do
-			if (frames >= THREADS_PRIORITYS[self.priority].frame) then
-				activeThreads = true;
-
+		if (not self.currentId) or (not self.threads[self.currentId]) then
+			self.currentId = nil;
+			
+			for id, _ in pairs (self.threads) do
+				self.currentId = id;
 				break
 			end
-
-			local status = coroutine.status (thread.routine);
-			if (status == 'dead') then
-				self:remove (id);
-			elseif (not thread.paused) then
-				activeThreads = true;
-
-				local success, error = coroutine.resume (thread.routine, unpack (thread.arguments));
-				if (not success) then
-					error ('[Threads] Thread ID ' .. id .. ' error: ' .. tostring (error));
-					self:remove (id);
-				else
-					frames = (frames + 1);
+			
+			if (not self.currentId) then
+				if (isTimer (self.timer)) then
+					killTimer (self.timer);
+					self.timer = nil;
 				end
-			else
-				activeThreads = true;
+				return
 			end
 		end
 
-		if (not activeThreads) and (isTimer (self.timer)) then
-			killTimer (self.timer);
-			self.timer = nil;
+		---@type Thread
+		local thread = self.threads[self.currentId];
+		if (not thread) then
+			self.currentId = nil;
+			return
+		end
+
+		if (thread.paused) then
+			return
+		end
+
+		local frames = 0;
+		while (frames < THREADS_PRIORITYS[self.priority].frame) do
+			local status = coroutine.status (thread.routine);
+			
+			if (status == 'dead') then
+				self:remove (self.currentId);
+				self.currentId = nil;
+				break
+			end
+
+			local success, error;
+			if (not thread.started) then
+				success, error = coroutine.resume (thread.routine, unpack (thread.arguments));
+				thread.started = true;
+			else
+				success, error = coroutine.resume (thread.routine);
+			end
+
+			if (not success) then
+				error ('[Threads] Thread ID ' .. self.currentId .. ' error: ' .. tostring (error));
+				self:remove (self.currentId);
+				self.currentId = nil;
+				break
+			end
+
+			frames = (frames + 1);
+			if (coroutine.status (thread.routine) == 'dead') then
+				self:remove (self.currentId);
+				self.currentId = nil;
+				break
+			end
 		end
 	end,
 
