@@ -16,17 +16,16 @@ function sleep (miliseconds)
 	until (getTickCount () - current) >= miliseconds;
 end
 
----@class Prioritys
----@field low { pulsing: number, frame: number }
----@field normal { pulsing: number, frame: number }
----@field high { pulsing: number, frame: number }
----@field extreme { pulsing: number, frame: number }
+---@type table<string, { pulsing: number, frame: number }>
 local THREADS_PRIORITYS = {
 	low = { pulsing = 250, frame = 8 },
 	normal = { pulsing = 100, frame = 15 },
 	high = { pulsing = 50, frame = 25 },
 	extreme = { pulsing = 0, frame = 50 },
 };
+
+---@alias ThreadsType 'concurrent' | 'sequential'
+---@alias ThreadsPriority 'low' | 'normal' | 'high' | 'extreme'
 
 ---@class Thread
 ---@field routine thread
@@ -38,8 +37,8 @@ local THREADS_PRIORITYS = {
 ---@field threads table<number, Thread>
 ---@field nextId number
 ---@field currentId number
----@field type 'concurrent' | 'sequential'
----@field priority 'low' | 'normal' | 'high' | 'extreme'
+---@field type ThreadsType
+---@field priority ThreadsPriority
 ---@field timer userdata | nil
 ---@field add fun(self: Threads, func: fun(self: Threads, ...: any): any, ...: any): number
 ---@field remove fun(self: Threads, id: number): boolean
@@ -48,21 +47,24 @@ local THREADS_PRIORITYS = {
 ---@field pause fun(self: Threads, id: number): boolean
 ---@field resume fun(self: Threads, id: number): boolean
 ---@field process fun(self: Threads): void
----@field getType fun(self: Threads): 'concurrent' | 'sequential'
----@field setType fun(self: Threads, style: 'concurrent' | 'sequential'): boolean
----@field getPriority fun(self: Threads): 'low' | 'normal' | 'high'
----@field setPriority fun(self: Threads, priority: 'low' | 'normal' | 'high'): boolean
+---@field getType fun(self: Threads): ThreadsType
+---@field setType fun(self: Threads, style: ThreadsType): boolean
+---@field getPriority fun(self: Threads): ThreadsPriority
+---@field setPriority fun(self: Threads, priority: ThreadsPriority): boolean
 Threads = {
 	---@param self Threads
-	---@param type? 'concurrent' | 'sequential'
-	---@param priority? 'low' | 'normal' | 'high'
+	---@param type? ThreadsType
+	---@param priority? ThreadsPriority
 	---@return Threads
 	new = function (type, priority)
 		local self = setmetatable ({ }, { __index = Threads });
 		self.threads = { };
 
 		self.nextId, self.currentId = 0, -1;
-		self.type, self.priority = (type or 'concurrent'), (priority or 'normal');
+		self.type, self.priority = 'concurrent', 'normal';
+
+		self:setType (type or 'concurrent');
+		self:setPriority (priority or 'normal');
 
 		self.timer = nil;
 		return self;
@@ -117,9 +119,7 @@ Threads = {
 			return false;
 		end
 
-		self.threads = { };
-		self.currentId = -1;
-
+		self.threads, self.currentId = { }, -1;
 		if (isTimer (self.timer)) then
 			killTimer (self.timer);
 		end
@@ -232,11 +232,9 @@ Threads = {
 					break
 				end
 				
-				if (self.currentId < 1) then
-					if (isTimer (self.timer)) then
-						killTimer (self.timer);
-						self.timer = nil;
-					end
+				if (self.currentId < 1) and (isTimer (self.timer)) then
+					killTimer (self.timer);
+					self.timer = nil;
 					return
 				end
 			end
@@ -284,13 +282,13 @@ Threads = {
 	end,
 
 	---@param self Threads
-	---@return 'concurrent' | 'sequential'
+	---@return ThreadsType
 	getType = function (self)
 		return self.type;
 	end,
 
 	---@param self Threads
-	---@param style 'concurrent' | 'sequential'
+	---@param style ThreadsType
 	---@return boolean
 	setType = function (self, style)
 		local theType = type (style);
@@ -313,13 +311,13 @@ Threads = {
 	end,
 
 	---@param self Threads
-	---@return 'low' | 'normal' | 'high' | 'extreme'
+	---@return ThreadsPriority
 	getPriority = function (self)
 		return self.priority;
 	end,
 
 	---@param self Threads
-	---@param priority 'low' | 'normal' | 'high' | 'extreme'
+	---@param priority ThreadsPriority
 	---@return boolean
 	setPriority = function (self, priority)
 		local priorityType = type (priority);
