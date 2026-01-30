@@ -47,6 +47,8 @@ local THREADS_PRIORITYS = {
 ---@field pause fun(self: Threads, id: number): boolean
 ---@field resume fun(self: Threads, id: number): boolean
 ---@field process fun(self: Threads): void
+---@field isPaused fun(self: Threads, id: number): boolean
+---@field isStarted fun(self: Threads, id: number): boolean
 ---@field getType fun(self: Threads): ThreadsType
 ---@field setType fun(self: Threads, style: ThreadsType): boolean
 ---@field getPriority fun(self: Threads): ThreadsPriority
@@ -153,7 +155,8 @@ Threads = {
 			return false;
 		end
 
-		if (thread.paused) then
+		local isPaused = self:isPaused (id);
+		if (isPaused) then
 			return false;
 		end
 
@@ -171,7 +174,8 @@ Threads = {
 			return false;
 		end
 
-		if (not thread.paused) then
+		local isPaused = self:isPaused (id);
+		if (not isPaused) then
 			return false;
 		end
 		thread.paused = false;
@@ -197,11 +201,11 @@ Threads = {
 				local status = coroutine.status (thread.routine);
 				if (status == 'dead') then
 					self:remove (id);
-				elseif (not thread.paused) then
+				elseif (not self:isPaused (id)) then
 					activeThread = true;
 
 					local success, error;
-					if (not thread.started) then
+					if (not self:isStarted (id)) then
 						success, error = coroutine.resume (thread.routine, self, unpack (thread.arguments));
 						thread.started = true;
 					else
@@ -246,7 +250,8 @@ Threads = {
 				return
 			end
 
-			if (thread.paused) then
+			local isPaused = self:isPaused (self.currentId);
+			if (isPaused) then
 				return
 			end
 
@@ -258,7 +263,7 @@ Threads = {
 				end
 
 				local success, error;
-				if (not thread.started) then
+				if (not self:isStarted (self.currentId)) then
 					success, error = coroutine.resume (thread.routine, self, unpack (thread.arguments));
 					thread.started = true;
 				else
@@ -278,6 +283,30 @@ Threads = {
 				end
 			end
 		end
+	end,
+
+	---@param self Threads
+	---@param id number
+	---@return boolean
+	isPaused = function (self, id)
+		---@type Thread
+		local thread = self.threads[id];
+		if (not thread) then
+			return false;
+		end
+		return thread.paused;
+	end,
+
+	---@param self Threads
+	---@param id number
+	---@return boolean
+	isStarted = function (self, id)
+		---@type Thread
+		local thread = self.threads[id];
+		if (not thread) then
+			return false;
+		end
+		return thread.started;
 	end,
 
 	---@param self Threads
