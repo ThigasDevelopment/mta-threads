@@ -126,11 +126,15 @@ Priorities control how often tasks are processed and how many yields per tick.
 | **low** | 250ms | 8 | Background tasks, logs, cleanup |
 | **normal** | 100ms | 15 | General processing, queries |
 | **high** | 50ms | 25 | UI updates, animations, player interactions |
+| **extreme** | 0ms (every frame) | 50 | Client-side rendering, critical real-time tasks |
+
+**Note:** These values are optimized for MTA servers. Use `extreme` with caution as it processes every frame.
 
 ```lua
 local bgTasks = Threads.new('sequential', 'low');
 local mainTasks = Threads.new('concurrent', 'normal');
 local uiTasks = Threads.new('concurrent', 'high');
+local renderTasks = Threads.new('concurrent', 'extreme'); -- For onClientRender replacement
 ```
 
 ## Real-World Examples
@@ -275,6 +279,61 @@ playerUpdates:add(function(self)
 end);
 ```
 
+### Example 8: Client-Side Rendering Task (onClientRender)
+
+```lua
+-- Client-side: Replace onClientRender with task-based approach
+local renderTasks = Threads.new('concurrent', 'extreme');
+
+-- Instead of:
+-- addEventHandler('onClientRender', root, function()
+--     drawMyHUD();
+--     updateAnimations();
+-- end);
+
+-- Use tasks for better control:
+renderTasks:add(function(self)
+    while true do
+        -- Draw HUD elements
+        dxDrawText('Health: ' .. getElementHealth(localPlayer), 10, 10);
+        dxDrawText('Position: ' .. string.format ('%.3f, %.3f, %.3f', getElementPosition(localPlayer)), 10, 30);
+        
+        sleep (0); -- Yield every frame
+    end
+end);
+
+renderTasks:add(function(self)
+    local alpha = 0;
+    local increasing = true;
+    
+    while true do
+        -- Animated fade effect
+        dxDrawRectangle(100, 100, 200, 50, tocolor(255, 255, 255, alpha));
+        
+        if increasing then
+            alpha = alpha + 5;
+            if alpha >= 255 then
+                increasing = false;
+            end
+        else
+            alpha = alpha - 5;
+            if alpha <= 0 then
+                increasing = true;
+            end
+        end
+        
+        sleep (0); -- Yield every frame
+    end
+end);
+
+-- Benefits:
+-- ✓ Can pause/resume individual render tasks
+-- ✓ Better organization than one large onClientRender
+-- ✓ Each visual element is independent
+-- ✓ Easy to add/remove render tasks dynamically
+-- ✓ 'extreme' priority processes every frame (0ms delay)
+```
+
 ## Thread Control
 
 ### Pausing and Resuming
@@ -354,7 +413,8 @@ end);
 ### ❌ DON'T
 
 - **Forget to yield** in long loops (will freeze server!)
-- **Use high priority** for non-critical background tasks
+- **Use high/extreme priority** for non-critical background tasks
+- **Overuse extreme priority** (processes every frame, high CPU usage)
 - **Create thousands of threads** simultaneously (use batching)
 - **Rely on thread execution order** in concurrent mode
 
@@ -381,12 +441,14 @@ Creates a new task manager instance.
   - `'low'` - 250ms ticks, 8 frames/tick
   - `'normal'` - 100ms ticks, 15 frames/tick (default)
   - `'high'` - 50ms ticks, 25 frames/tick
+  - `'extreme'` - 0ms ticks (every frame), 50 frames/tick
 
 **Returns:** `Threads` instance
 
 **Example:**
 ```lua
 local tasks = Threads.new('sequential', 'high');
+local renderTasks = Threads.new('concurrent', 'extreme'); -- For rendering
 ```
 
 ---
@@ -513,6 +575,7 @@ Changes the priority level at runtime.
   - `'low'` - Less frequent, fewer frames
   - `'normal'` - Balanced
   - `'high'` - More frequent, more frames
+  - `'extreme'` - Every frame, maximum frames
 
 **Returns:** `boolean` - `true` if changed, `false` if invalid or same as current
 
@@ -521,6 +584,7 @@ Changes the priority level at runtime.
 **Example:**
 ```lua
 tasks:setPriority('high');
+tasks:setPriority('extreme'); -- For client-side rendering
 ```
 
 ---
@@ -529,7 +593,7 @@ tasks:setPriority('high');
 
 Gets the current priority level.
 
-**Returns:** `string` - `'low'`, `'normal'`, or `'high'`
+**Returns:** `string` - `'low'`, `'normal'`, `'high'`, or `'extreme'`
 
 **Example:**
 ```lua
@@ -556,23 +620,50 @@ tasks:clear(); -- Remove all tasks
 
 #### `sleep(milliseconds)`
 
-Pauses task execution for a specified duration.
+Pauses task execution for a specified duration or yields immediately.
 
 **Parameters:**
 - `milliseconds` (number): Time to sleep in milliseconds
+  - If `< 1` or invalid: performs a single `yield()` and returns immediately
+  - If `>= 1`: yields repeatedly until the specified time has elapsed
 
 **Returns:** `void`
 
+**Behavior:**
+- `sleep(0)` or `sleep()` - Single yield, continues on next tick
+- `sleep(100)` - Yields until 100ms have passed
+- `sleep(-5)` - Same as `sleep(0)`, single yield
+- `sleep("invalid")` - Same as `sleep(0)`, single yield
+
 **Note:** Must be called from within a task function. Uses `getTickCount()` internally.
 
-**Example:**
+**Examples:**
 ```lua
+-- Time-based sleep
 tasks:add(function(self)
     print('Start');
     sleep(1000); -- Wait 1 second
     print('After 1 second');
     sleep(500);  -- Wait 0.5 seconds
     print('Done');
+end);
+
+-- Frame-based yield (for rendering tasks)
+tasks:add(function(self)
+    while true do
+        dxDrawText('FPS: ' .. getFPS(), 10, 10);
+        sleep(0); -- Yield every frame (equivalent to coroutine.yield())
+    end
+end);
+
+-- Processing with periodic yields
+tasks:add(function(self)
+    for i = 1, 10000 do
+        processItem(i);
+        if i % 100 == 0 then
+            sleep(0); -- Yield every 100 items
+        end
+    end
 end);
 ```
 
