@@ -211,16 +211,17 @@ tasks:add(function(self)
 end, {priority = 10});
 
 -- Output (priority-based execution):
--- [Critical] Health update 1
--- [Critical] Health update 2
--- [Critical] Health update 3
--- [Critical] Health update 4
--- [Critical] Health update 5
--- [Logic] Update 1
+-- Within each tick, threads execute in priority order:
+-- [Critical] Health update 1    (priority 10 - executes first)
+-- [Logic] Update 1               (priority 5 - executes second)
+-- [Background] Processing 1      (priority 2 - executes last)
+-- [Critical] Health update 2    (next tick, priority order again)
 -- [Logic] Update 2
--- ...
--- [Background] Processing 1
--- ...
+-- [Background] Processing 2
+-- [Critical] Health update 3
+-- [Logic] Update 3
+-- [Background] Processing 3
+-- ... (all threads progress, but in priority order per tick)
 ```
 
 **When to use Priority Mode:**
