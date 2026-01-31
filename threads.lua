@@ -21,7 +21,7 @@ local THREADS_PRIORITYS = {
 	extreme = { pulsing = 0, frame = 50 },
 };
 
----@alias ThreadsType 'concurrent' | 'sequential'
+---@alias ThreadsType 'concurrent' | 'priority' | 'sequential'
 ---@alias ThreadsPriority 'low' | 'normal' | 'high' | 'extreme'
 
 ---@class ThreadOptions
@@ -68,8 +68,8 @@ Threads = {
 		self.nextId, self.currentId = 0, -1;
 		self.type, self.priority = 'concurrent', 'normal';
 
-		self:setType (type or 'concurrent');
-		self:setPriority (priority or 'normal');
+		self:setType (type);
+		self:setPriority (priority);
 
 		self.timer = nil;
 		return self;
@@ -357,6 +357,7 @@ Threads = {
 
 		local AVAILABLE_TYPES = {
 			['concurrent'] = true,
+			['priority'] = true,
 			['sequential'] = true,
 		};
 
