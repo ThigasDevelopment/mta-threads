@@ -35,6 +35,10 @@ local THREADS_PRIORITYS = {
 ---@field priority? number
 ---@field get fun(self: Thread): number
 ---@field set fun(self: Thread, priority: number): boolean
+---@field pause fun(self: Thread): boolean
+---@field resume fun(self: Thread): boolean
+---@field isPaused fun(self: Thread): boolean
+---@field isStarted fun(self: Thread): boolean
 
 ---@class Threads
 ---@field threads table<number, Thread>
@@ -47,11 +51,7 @@ local THREADS_PRIORITYS = {
 ---@field remove fun(self: Threads, id: number): boolean
 ---@field clear fun(self: Threads): boolean
 ---@field start fun(self: Threads): boolean
----@field pause fun(self: Threads, id: number): boolean
----@field resume fun(self: Threads, id: number): boolean
 ---@field process fun(self: Threads): void
----@field isPaused fun(self: Threads, id: number): boolean
----@field isStarted fun(self: Threads, id: number): boolean
 ---@field getType fun(self: Threads): ThreadsType
 ---@field setType fun(self: Threads, style: ThreadsType): boolean
 ---@field getPriority fun(self: Threads): ThreadsPriority
@@ -116,6 +116,42 @@ Threads = {
 				self.priority = priority;
 				return true;
 			end,
+
+			---@param self Thread
+			---@return boolean
+			pause = function (self)
+				local isPaused = self:isPaused ();
+				if (isPaused) then
+					return false;
+				end
+
+				self.paused = true;
+				return true;
+			end,
+
+			---@param self Thread
+			---@return boolean
+			resume = function (self)
+				local isPaused = self:isPaused ();
+				if (not isPaused) then
+					return false;
+				end
+
+				self.paused = false;
+				return true;
+			end,
+
+			---@param self Thread
+			---@return boolean
+			isPaused = function (self)
+				return self.paused;
+			end,
+
+			---@param self Thread
+			---@return boolean
+			isStarted = function (self)
+				return self.started;
+			end,
 		};
 
 		local newId = (self.nextId + 1);
@@ -178,44 +214,6 @@ Threads = {
 	end,
 
 	---@param self Threads
-	---@param id number
-	---@return boolean
-	pause = function (self, id)
-		local thread = self:getThread (id);
-		if (not thread) then
-			return false;
-		end
-
-		local isPaused = self:isPaused (id);
-		if (isPaused) then
-			return false;
-		end
-
-		thread.paused = true;
-		return true;
-	end,
-
-	---@param self Threads
-	---@param id number
-	---@return boolean
-	resume = function (self, id)
-		---@type Thread
-		local thread = self:getThread (id);
-		if (not thread) then
-			return false;
-		end
-
-		local isPaused = self:isPaused (id);
-		if (not isPaused) then
-			return false;
-		end
-		thread.paused = false;
-
-		self:start ();
-		return true;
-	end,
-
-	---@param self Threads
 	---@return void
 	process = function (self)
 		local frames = 0;
@@ -232,11 +230,11 @@ Threads = {
 				local status = coroutine.status (thread.routine);
 				if (status == 'dead') then
 					self:remove (id);
-				elseif (not self:isPaused (id)) then
+				elseif (not thread:isPaused ()) then
 					activeThread = true;
 
 					local success, message;
-					if (not self:isStarted (id)) then
+					if (not thread:isStarted ()) then
 						success, message = coroutine.resume (thread.routine, self, unpack (thread.arguments));
 						thread.started = true;
 					else
@@ -296,7 +294,7 @@ Threads = {
 					activeThread = true;
 
 					local success, message;
-					if (not self:isStarted (id)) then
+					if (not thread:isStarted ()) then
 						success, message = coroutine.resume (thread.routine, self, unpack (thread.arguments));
 						thread.started = true;
 					else
@@ -339,7 +337,7 @@ Threads = {
 				return
 			end
 
-			local isPaused = self:isPaused (self.currentId);
+			local isPaused = thread:isPaused ();
 			if (isPaused) then
 				return
 			end
@@ -352,7 +350,7 @@ Threads = {
 				end
 
 				local success, message;
-				if (not self:isStarted (self.currentId)) then
+				if (not thread:isStarted ()) then
 					success, message = coroutine.resume (thread.routine, self, unpack (thread.arguments));
 					thread.started = true;
 				else
@@ -372,28 +370,6 @@ Threads = {
 				end
 			end
 		end
-	end,
-
-	---@param self Threads
-	---@param id number
-	---@return boolean
-	isPaused = function (self, id)
-		local thread = self:getThread (id);
-		if (not thread) then
-			return false;
-		end
-		return thread.paused;
-	end,
-
-	---@param self Threads
-	---@param id number
-	---@return boolean
-	isStarted = function (self, id)
-		local thread = self:getThread (id);
-		if (not thread) then
-			return false;
-		end
-		return thread.started;
 	end,
 
 	---@param self Threads
