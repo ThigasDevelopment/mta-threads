@@ -258,6 +258,64 @@ Threads = {
 				killTimer (self.timer);
 				self.timer = nil;
 			end
+		elseif (theType == 'priority') then
+			local activeThreads = { };
+
+			---@param id number
+			---@param thread Thread
+			for id, thread in pairs (self.threads) do
+				local isPaused = self:isPaused (id);
+				if (not isPaused) then
+					activeThreads[#activeThreads + 1] = { id = id, thread = thread };
+				end
+			end
+
+			table.sort (activeThreads,
+				---@param a { id: number, thread: Thread }
+				---@param b { id: number, thread: Thread }
+				function (a, b)
+					return (a.thread:get () > b.thread:get ());
+				end
+			);
+
+			local activeThread = false;
+
+			---@param item { id: number, thread: Thread }
+			for _, item in pairs (activeThreads) do
+				if (frames >= THREADS_PRIORITYS[self.priority].frame) then
+					activeThread = true;
+					break
+				end
+
+				local id, thread = item.id, item.thread;
+
+				local status = coroutine.status (thread.routine);
+				if (status == 'dead') then
+					self:remove (id);
+				else
+					activeThread = true;
+
+					local success, message;
+					if (not self:isStarted (id)) then
+						success, message = coroutine.resume (thread.routine, self, unpack (thread.arguments));
+						thread.started = true;
+					else
+						success, message = coroutine.resume (thread.routine, self);
+					end
+
+					if (not success) then
+						error ('[Threads] Thread ID ' .. id .. ' error: ' .. tostring (message));
+						self:remove (id);
+					else
+						frames = (frames + 1);
+					end
+				end
+			end
+
+			if (not activeThread) and (isTimer (self.timer)) then
+				killTimer (self.timer);
+				self.timer = nil;
+			end
 		elseif (theType == 'sequential') then
 			if (not self.threads[self.currentId]) then
 				self.currentId = -1;
