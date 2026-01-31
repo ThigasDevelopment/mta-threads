@@ -47,7 +47,7 @@ local THREADS_PRIORITYS = {
 ---@field type ThreadsType
 ---@field priority ThreadsPriority
 ---@field timer userdata | nil
----@field add fun(self: Threads, func: fun(self: Threads, ...: any): any, options: ThreadOptions, ...: any): number
+---@field add fun(self: Threads, func: fun(self: Thread, ...: any): any, options: ThreadOptions, ...: any): number
 ---@field remove fun(self: Threads, id: number): boolean
 ---@field clear fun(self: Threads): boolean
 ---@field start fun(self: Threads): boolean
@@ -77,7 +77,7 @@ Threads = {
 	end,
 
 	---@param self Threads
-	---@param func fun(self: Threads, ...: any): any
+	---@param func fun(self: Thread, ...: any): any
 	---@param options ThreadOptions
 	---@param ... any
 	---@return number
@@ -235,10 +235,10 @@ Threads = {
 
 					local success, message;
 					if (not thread:isStarted ()) then
-						success, message = coroutine.resume (thread.routine, self, unpack (thread.arguments));
+						success, message = coroutine.resume (thread.routine, thread, unpack (thread.arguments));
 						thread.started = true;
 					else
-						success, message = coroutine.resume (thread.routine, self);
+						success, message = coroutine.resume (thread.routine, thread);
 					end
 
 					if (not success) then
@@ -295,10 +295,10 @@ Threads = {
 
 					local success, message;
 					if (not thread:isStarted ()) then
-						success, message = coroutine.resume (thread.routine, self, unpack (thread.arguments));
+						success, message = coroutine.resume (thread.routine, thread, unpack (thread.arguments));
 						thread.started = true;
 					else
-						success, message = coroutine.resume (thread.routine, self);
+						success, message = coroutine.resume (thread.routine, thread);
 					end
 
 					if (not success) then
@@ -351,10 +351,10 @@ Threads = {
 
 				local success, message;
 				if (not thread:isStarted ()) then
-					success, message = coroutine.resume (thread.routine, self, unpack (thread.arguments));
+					success, message = coroutine.resume (thread.routine, thread, unpack (thread.arguments));
 					thread.started = true;
 				else
-					success, message = coroutine.resume (thread.routine, self);
+					success, message = coroutine.resume (thread.routine, thread);
 				end
 
 				if (not success) then
