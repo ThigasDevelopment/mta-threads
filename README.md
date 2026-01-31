@@ -19,8 +19,11 @@ A lightweight **coroutine-based async task system** for MTA:SA servers. Distribu
 
 ## Features
 
-- ✅ **Two execution modes**: Concurrent (interleaved) and Sequential (queue-based)
-- ✅ **Priority system**: Low, Normal, High with configurable performance profiles
+- ✅ **Three execution modes**: Concurrent (interleaved), Sequential (queue-based), and Priority-based
+- ✅ **Priority system**: Low, Normal, High, Extreme with configurable performance profiles
+- ✅ **Per-thread priority**: Assign individual priorities (1-10) to threads in priority mode
+- ✅ **Dynamic priority adjustment**: Change thread priorities at runtime via `thread:set()`
+- ✅ **Direct thread access**: Get thread objects with `getThread()` for fine-grained control
 - ✅ **Task control**: Pause, resume, and remove tasks dynamically
 - ✅ **Simple API**: Easy to use with coroutines and sleep helpers
 - ✅ **Error handling**: Automatic error catching and cleanup
@@ -116,6 +119,56 @@ end);
 -- [Task B] Step 2
 -- ...
 ```
+
+### Priority Mode ⭐ NEW
+
+Tasks execute based on **individual priority levels** (1-10) - higher priority threads execute first.
+
+```lua
+local tasks = Threads.new('priority', 'normal');
+
+-- Low priority: Background tasks (priority 2)
+tasks:add(function(self)
+    for i = 1, 5 do
+        print('[Background] Processing ' .. i);
+        sleep(100);
+    end
+end, {priority = 2});
+
+-- Medium priority: Game logic (priority 5)
+tasks:add(function(self)
+    for i = 1, 5 do
+        print('[Logic] Update ' .. i);
+        sleep(100);
+    end
+end, {priority = 5});
+
+-- High priority: Combat/Critical systems (priority 10)
+tasks:add(function(self)
+    for i = 1, 5 do
+        print('[Critical] Health update ' .. i);
+        sleep(100);
+    end
+end, {priority = 10});
+
+-- Output (priority-based execution):
+-- [Critical] Health update 1
+-- [Critical] Health update 2
+-- [Critical] Health update 3
+-- [Critical] Health update 4
+-- [Critical] Health update 5
+-- [Logic] Update 1
+-- [Logic] Update 2
+-- ...
+-- [Background] Processing 1
+-- ...
+```
+
+**When to use Priority Mode:**
+- ✅ Critical systems (player health, combat) need faster execution
+- ✅ Mix of important and background tasks
+- ✅ Want fine control over execution order
+- ✅ Performance-sensitive applications
 
 ## Priority System
 
@@ -279,7 +332,89 @@ playerUpdates:add(function(self)
 end);
 ```
 
-### Example 8: Client-Side Rendering Task (onClientRender)
+### Example 9: Priority-Based Combat System ⭐
+
+```lua
+local gameThreads = Threads.new('priority', 'normal');
+
+-- CRITICAL: Player health updates (priority 10)
+gameThreads:add(function(self)
+    while true do
+        for _, player in ipairs(getElementsByType('player')) do
+            updatePlayerHealth(player);
+            checkPlayerStatus(player);
+        end
+        sleep(50); -- Update every 50ms
+    end
+end, {priority = 10});
+
+-- HIGH: Combat calculations (priority 8)
+gameThreads:add(function(self)
+    while true do
+        processCombatActions();
+        calculateDamage();
+        sleep(100);
+    end
+end, {priority = 8});
+
+-- MEDIUM: NPC AI updates (priority 5)
+gameThreads:add(function(self)
+    while true do
+        for _, npc in ipairs(npcs) do
+            updateNPCBehavior(npc);
+            coroutine.yield();
+        end
+        sleep(200);
+    end
+end, {priority = 5});
+
+-- LOW: Visual effects and particles (priority 2)
+gameThreads:add(function(self)
+    while true do
+        updateParticleEffects();
+        cleanupOldEffects();
+        sleep(500);
+    end
+end, {priority = 2});
+
+-- Benefits:
+-- ✓ Critical systems (health) always execute first
+-- ✓ Combat has higher priority than AI
+-- ✓ Visual effects don't interfere with gameplay
+-- ✓ Predictable execution order
+```
+
+### Example 10: Dynamic Priority Adjustment
+
+```lua
+local tasks = Threads.new('priority', 'normal');
+
+-- Start with normal priority
+local renderTaskID = tasks:add(function(self)
+    while true do
+        renderUI();
+        sleep(16); -- ~60 FPS
+    end
+end, {priority = 5});
+
+-- Increase priority during combat
+addEventHandler('onPlayerDamage', root, function()
+    local thread = tasks:getThread(renderTaskID);
+    if thread then
+        thread:set(9); -- Boost to high priority
+    end
+end);
+
+-- Return to normal after combat ends
+addEventHandler('onCombatEnd', root, function()
+    local thread = tasks:getThread(renderTaskID);
+    if thread then
+        thread:set(5); -- Back to medium
+    end
+end);
+```
+
+### Example 11: Client-Side Rendering Task (onClientRender)
 
 ```lua
 -- Client-side: Replace onClientRender with task-based approach
@@ -437,6 +572,7 @@ Creates a new task manager instance.
 - `type` (string, optional): Execution mode
   - `'concurrent'` - Tasks execute interleaved (default)
   - `'sequential'` - Tasks execute one at a time (queue)
+  - `'priority'` - Tasks execute based on individual priority levels
 - `priority` (string, optional): Performance profile
   - `'low'` - 250ms ticks, 8 frames/tick
   - `'normal'` - 100ms ticks, 15 frames/tick (default)
@@ -449,13 +585,14 @@ Creates a new task manager instance.
 ```lua
 local tasks = Threads.new('sequential', 'high');
 local renderTasks = Threads.new('concurrent', 'extreme'); -- For rendering
+local gameLogic = Threads.new('priority', 'normal'); -- For priority-based execution
 ```
 
 ---
 
 ### Task Management
 
-#### `tasks:add(func, ...)`
+#### `tasks:add(func, [options], ...)`
 
 Adds a new task to the manager.
 
@@ -463,18 +600,42 @@ Adds a new task to the manager.
 - `func` (function): Task function to execute
   - First parameter is always `self` (the Threads instance)
   - Must call `coroutine.yield()` or `sleep()` to cooperate
+- `options` (table, optional): Configuration options (only for 'priority' mode)
+  - `priority` (number): Thread priority level (1-10, default: 5)
+    - Higher values = higher priority
+    - Only applies when execution mode is `'priority'`
 - `...` (any): Additional arguments passed to the function
 
 **Returns:** `number` - Unique task ID
 
-**Example:**
+**Examples:**
 ```lua
+-- Basic usage (concurrent/sequential modes)
 local taskID = tasks:add(function(self, name, value)
     for i = 1, 100 do
         print(name, value, i);
         coroutine.yield();
     end
 end, "MyTask", 42);
+
+-- With priority (priority mode only)
+local criticalTask = tasks:add(function(self)
+    -- Critical game logic
+    updatePlayerHealth();
+    sleep(50);
+end, {priority = 10}); -- Highest priority
+
+local backgroundTask = tasks:add(function(self)
+    -- Background processing
+    cleanupOldData();
+    sleep(1000);
+end, {priority = 2}); -- Low priority
+
+-- With priority AND arguments
+local taskID = tasks:add(function(self, playerName, data)
+    print("Processing:", playerName, data);
+    sleep(100);
+end, {priority = 7}, "John", {score = 100});
 ```
 
 ---
@@ -542,12 +703,14 @@ Changes the execution mode at runtime.
 - `type` (string): Execution mode
   - `'concurrent'` - Switch to interleaved execution
   - `'sequential'` - Switch to queue-based execution
+  - `'priority'` - Switch to priority-based execution
 
 **Returns:** `boolean` - `true` if changed, `false` if invalid or same as current
 
 **Example:**
 ```lua
 tasks:setType('sequential');
+tasks:setType('priority'); -- Switch to priority mode
 ```
 
 ---
@@ -556,12 +719,70 @@ tasks:setType('sequential');
 
 Gets the current execution mode.
 
-**Returns:** `string` - `'concurrent'` or `'sequential'`
+**Returns:** `string` - `'concurrent'`, `'sequential'`, or `'priority'`
 
 **Example:**
 ```lua
 local mode = tasks:getType();
 print('Current mode: ' .. mode);
+```
+
+---
+
+#### `tasks:getThread(id)` ⭐
+
+Gets a thread object by its ID, allowing direct access to thread methods.
+
+**Parameters:**
+- `id` (number): Task ID returned by `add()`
+
+**Returns:** `Thread | nil` - Thread object or `nil` if not found
+
+**Thread Methods:**
+- `thread:get()` - Get thread priority (1-10)
+- `thread:set(priority)` - Set thread priority (1-10)
+
+**Note:** Thread methods are primarily useful in `'priority'` mode.
+
+**Examples:**
+```lua
+local taskID = tasks:add(myFunction, {priority = 5});
+
+-- Get the thread object
+local thread = tasks:getThread(taskID);
+
+if thread then
+    -- Get current priority
+    local currentPriority = thread:get();
+    print('Current priority:', currentPriority); -- 5
+    
+    -- Change priority
+    thread:set(9); -- Increase to high priority
+    print('New priority:', thread:get()); -- 9
+    
+    -- Lower priority
+    thread:set(2);
+else
+    print('Thread not found');
+end
+```
+
+**Practical Usage:**
+```lua
+-- Dynamic priority adjustment
+local renderTask = tasks:add(renderFunction, {priority = 5});
+
+addEventHandler('onPlayerDamage', root, function()
+    -- Boost render priority during combat
+    local thread = tasks:getThread(renderTask);
+    if thread then thread:set(10); end
+end);
+
+addEventHandler('onCombatEnd', root, function()
+    -- Return to normal priority
+    local thread = tasks:getThread(renderTask);
+    if thread then thread:set(5); end
+end);
 ```
 
 ---
@@ -612,6 +833,114 @@ Removes all tasks and stops the timer.
 **Example:**
 ```lua
 tasks:clear(); -- Remove all tasks
+```
+
+---
+
+## Thread Class Reference
+
+The `Thread` class represents an individual task/coroutine within the thread manager. Thread objects are obtained via `tasks:getThread(id)` and provide methods for priority management.
+
+### Thread Properties
+
+Thread objects contain the following internal properties (read-only, for informational purposes):
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `routine` | coroutine | The Lua coroutine object |
+| `arguments` | table | Arguments passed to the thread function |
+| `paused` | boolean | Whether the thread is currently paused |
+| `started` | boolean | Whether the thread has begun execution |
+| `priority` | number | Thread priority level (1-10, used in 'priority' mode) |
+
+**Note:** These properties should not be accessed directly. Use thread methods instead.
+
+---
+
+### Thread Methods
+
+#### `thread:get()`
+
+Gets the priority level of the thread.
+
+**Parameters:** None
+
+**Returns:** `number` - Priority level (1-10)
+- Higher values = higher priority
+- Only meaningful in `'priority'` execution mode
+
+**Example:**
+```lua
+local taskID = tasks:add(myFunction, {priority = 7});
+local thread = tasks:getThread(taskID);
+
+if thread then
+    local priority = thread:get();
+    print('Thread priority:', priority); -- 7
+end
+```
+
+---
+
+#### `thread:set(priority)`
+
+Sets the priority level of the thread at runtime.
+
+**Parameters:**
+- `priority` (number): New priority level (1-10)
+  - 1 = Lowest priority (background tasks)
+  - 5 = Medium priority (default)
+  - 10 = Highest priority (critical systems)
+
+**Returns:** `boolean` 
+- `true` if priority was changed
+- `false` if invalid priority or unchanged
+
+**Note:** Priority changes take effect immediately in `'priority'` mode. In other modes, priority is stored but not used.
+
+**Examples:**
+```lua
+local taskID = tasks:add(updateFunction, {priority = 5});
+local thread = tasks:getThread(taskID);
+
+-- Increase priority during critical moment
+if thread then
+    thread:set(10); -- Boost to maximum
+end
+
+-- Later, return to normal
+if thread then
+    local success = thread:set(5);
+    if success then
+        print('Priority changed to 5');
+    end
+end
+```
+
+**Practical Example - Dynamic Priority:**
+```lua
+-- Create a rendering task with medium priority
+local renderID = tasks:add(function(self)
+    while true do
+        drawCustomUI();
+        sleep(16);
+    end
+end, {priority = 5});
+
+-- Boost priority during combat
+addEventHandler('onClientRender', root, function()
+    if isPlayerInCombat() then
+        local thread = tasks:getThread(renderID);
+        if thread and thread:get() ~= 10 then
+            thread:set(10); -- Critical priority
+        end
+    else
+        local thread = tasks:getThread(renderID);
+        if thread and thread:get() ~= 5 then
+            thread:set(5); -- Normal priority
+        end
+    end
+end);
 ```
 
 ---
