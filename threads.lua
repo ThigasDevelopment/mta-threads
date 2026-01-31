@@ -201,16 +201,16 @@ Threads = {
 				elseif (not self:isPaused (id)) then
 					activeThread = true;
 
-					local success, error;
+					local success, message;
 					if (not self:isStarted (id)) then
-						success, error = coroutine.resume (thread.routine, self, unpack (thread.arguments));
+						success, message = coroutine.resume (thread.routine, self, unpack (thread.arguments));
 						thread.started = true;
 					else
-						success, error = coroutine.resume (thread.routine, self);
+						success, message = coroutine.resume (thread.routine, self);
 					end
 
 					if (not success) then
-						error ('[Threads] Thread ID ' .. id .. ' error: ' .. tostring (error));
+						error ('[Threads] Thread ID ' .. id .. ' error: ' .. tostring (message));
 						self:remove (id);
 					else
 						frames = (frames + 1);
@@ -259,16 +259,16 @@ Threads = {
 					break
 				end
 
-				local success, error;
+				local success, message;
 				if (not self:isStarted (self.currentId)) then
-					success, error = coroutine.resume (thread.routine, self, unpack (thread.arguments));
+					success, message = coroutine.resume (thread.routine, self, unpack (thread.arguments));
 					thread.started = true;
 				else
-					success, error = coroutine.resume (thread.routine, self);
+					success, message = coroutine.resume (thread.routine, self);
 				end
 
 				if (not success) then
-					error ('[Threads] Thread ID ' .. self.currentId .. ' error: ' .. tostring (error));
+					error ('[Threads] Thread ID ' .. self.currentId .. ' error: ' .. tostring (message));
 					self:remove (self.currentId);
 					break
 				end
