@@ -56,6 +56,7 @@ local THREADS_PRIORITYS = {
 ---@field setType fun(self: Threads, style: ThreadsType): boolean
 ---@field getPriority fun(self: Threads): ThreadsPriority
 ---@field setPriority fun(self: Threads, priority: ThreadsPriority): boolean
+---@field getThread fun(self: Threads, id: number): Thread | nil
 Threads = {
 	---@param self Threads
 	---@param type? ThreadsType
@@ -180,8 +181,7 @@ Threads = {
 	---@param id number
 	---@return boolean
 	pause = function (self, id)
-		---@type Thread
-		local thread = self.threads[id];
+		local thread = self:getThread (id);
 		if (not thread) then
 			return false;
 		end
@@ -200,7 +200,7 @@ Threads = {
 	---@return boolean
 	resume = function (self, id)
 		---@type Thread
-		local thread = self.threads[id];
+		local thread = self:getThread (id);
 		if (not thread) then
 			return false;
 		end
@@ -378,8 +378,7 @@ Threads = {
 	---@param id number
 	---@return boolean
 	isPaused = function (self, id)
-		---@type Thread
-		local thread = self.threads[id];
+		local thread = self:getThread (id);
 		if (not thread) then
 			return false;
 		end
@@ -390,8 +389,7 @@ Threads = {
 	---@param id number
 	---@return boolean
 	isStarted = function (self, id)
-		---@type Thread
-		local thread = self.threads[id];
+		local thread = self:getThread (id);
 		if (not thread) then
 			return false;
 		end
@@ -454,5 +452,17 @@ Threads = {
 
 		self:start ();
 		return true;
+	end,
+
+	---@param self Threads
+	---@param id number
+	---@return Thread
+	getThread = function (self, id)
+		---@type Thread
+		local thread = self.threads[id];
+		if (not thread) then
+			return nil;
+		end
+		return thread;
 	end,
 };
