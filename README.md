@@ -38,26 +38,32 @@ A lightweight **coroutine-based async task system** for MTA:SA servers. Distribu
 
 ## Basic Usage
 
+> **💡 Key Concept:** In task functions, `self` refers to the **Thread object itself**, not the manager. This allows threads to control their own state (pause, resume, priority) directly. The manager is accessible via the closure (outer scope variable).
+
 ### Quick Start
 
 ```lua
 -- 1. Create a task manager
 local tasks = Threads.new('concurrent', 'normal');
 
--- 2. Add a task
+-- 2. Add a task (self = Thread object)
 local taskID = tasks:add(function(self)
     for i = 1, 100 do
         print('Processing ' .. i);
         sleep(100); -- Yield control
+        
+        -- self is the thread itself
+        if i == 50 then
+            self:pause(); -- Pause yourself
+        end
     end
 end, {priority = 5}); -- Optional: only used in 'priority' mode
 
--- 3. Control the thread
+-- 3. Control the thread from outside
 local thread = tasks:getThread(taskID);
 if thread then
-    thread:pause();     -- Pause execution
-    thread:resume();    -- Resume execution
-    thread:set(10);     -- Change priority
+    thread:resume();     -- Resume execution
+    thread:set(10);      -- Change priority
     print(thread:get()); -- Get priority
 end
 ```
@@ -74,18 +80,35 @@ local tasks = Threads.new('sequential', 'high');
 
 ### Adding Tasks
 
+**Important:** The `self` parameter in task functions is the **Thread object** itself, allowing self-control.
+
 ```lua
 -- Basic task
-tasks:add(function(self)
+tasks:add(function(self) -- self = Thread
     for i = 1, 100 do
         print('Processing item ' .. i);
         coroutine.yield(); -- Yield control cooperatively
     end
 end);
 
+-- Task with self-control
+tasks:add(function(self) -- self = Thread
+    for i = 1, 10 do
+        print('Step:', i);
+        
+        -- Thread can control itself
+        if i == 5 then
+            self:set(10); -- Boost own priority
+        end
+        
+        sleep(100);
+    end
+end, {priority = 5});
+
 -- Task with priority (ONLY works in 'priority' mode)
-tasks:add(function(self)
+tasks:add(function(self) -- self = Thread
     print('High priority task');
+    print('My priority:', self:get());
     sleep(100);
 end, {priority = 10}); -- Ignored in 'concurrent' and 'sequential' modes
 ```
@@ -235,7 +258,7 @@ local renderTasks = Threads.new('concurrent', 'extreme'); -- For onClientRender 
 local dbThreads = Threads.new('sequential', 'normal');
 
 -- Process multiple database queries without blocking
-dbThreads:add(function(self)
+dbThreads:add(function(self) -- self = Thread
     local players = getElementsByType('player');
     
     for i, player in ipairs(players) do
@@ -253,7 +276,7 @@ end);
 ```lua
 local mapLoader = Threads.new('sequential', 'low');
 
-mapLoader:add(function(self)
+mapLoader:add(function(self) -- self = Thread
     local objects = {
         {model = 1337, x = 0, y = 0, z = 3},
         {model = 1338, x = 10, y = 10, z = 3},
@@ -717,7 +740,8 @@ Adds a new task to the manager.
 
 **Parameters:**
 - `func` (function): Task function to execute
-  - First parameter is always `self` (the Threads instance)
+  - **First parameter is always `self` (the Thread instance itself)**
+  - Allows thread to control its own state (pause, resume, priority)
   - Must call `coroutine.yield()` or `sleep()` to cooperate
 - `options` (table, optional): Configuration options
   - `priority` (number): Thread priority level (1-10, default: 5)
@@ -730,30 +754,46 @@ Adds a new task to the manager.
 
 **Examples:**
 ```lua
--- Basic usage (concurrent/sequential modes)
-local taskID = tasks:add(function(self, name, value)
+-- Basic usage - self is the Thread
+local taskID = tasks:add(function(self, name, value) -- self = Thread
     for i = 1, 100 do
         print(name, value, i);
+        
+        -- Thread self-control
+        if i == 50 then
+            print('Halfway! My priority:', self:get());
+        end
+        
         coroutine.yield();
     end
-end, "MyTask", 42);
+end, nil, "MyTask", 42); -- nil = no options
 
 -- With priority (priority mode only)
-local criticalTask = tasks:add(function(self)
-    -- Critical game logic
+local criticalTask = tasks:add(function(self) -- self = Thread
+    -- Can check/modify own priority
+    print('Starting with priority:', self:get());
+    
     updatePlayerHealth();
     sleep(50);
 end, {priority = 10}); -- Highest priority
 
-local backgroundTask = tasks:add(function(self)
-    -- Background processing
-    cleanupOldData();
-    sleep(1000);
+local backgroundTask = tasks:add(function(self) -- self = Thread
+    -- Self-pause example
+    for i = 1, 100 do
+        cleanupOldData();
+        
+        if needsPause() then
+            self:pause(); -- Pause yourself
+        end
+        
+        sleep(1000);
+    end
 end, {priority = 2}); -- Low priority
 
 -- With priority AND arguments
-local taskID = tasks:add(function(self, playerName, data)
+local taskID = tasks:add(function(self, playerName, data) -- self = Thread
     print("Processing:", playerName, data);
+    print("My priority:", self:get());
     sleep(100);
 end, {priority = 7}, "John", {score = 100});
 ```
