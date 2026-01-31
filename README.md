@@ -28,7 +28,6 @@ A lightweight **coroutine-based async task system** for MTA:SA servers. Distribu
 - ✅ **Task management**: Add, remove, pause, and resume tasks dynamically
 - ✅ **Simple API**: Easy to use with coroutines and sleep helpers
 - ✅ **Error handling**: Automatic error catching and cleanup
-- ✅ **Backward compatibility**: Legacy `tasks:pause(id)` methods still work
 
 ## Installation
 
@@ -590,10 +589,6 @@ if thread then
         print('Thread is paused');
     end
 end
-
--- Alternative: Use Threads methods (compatibility)
-tasks:pause(threadID);
-tasks:resume(threadID);
 ```
 
 ### Changing Thread Priority
@@ -676,10 +671,10 @@ end);
 - **Rely on thread execution order** in concurrent mode
 - **Modify thread properties directly** (use methods instead)
 
-### 💡 Recommended API Usage
+### 💡 API Usage
 
 ```lua
-// ✅ Preferred (object-oriented)
+// ✅ Use thread methods via getThread()
 local thread = tasks:getThread(taskID);
 if thread then
     thread:pause();
@@ -687,12 +682,6 @@ if thread then
     local priority = thread:get();
     thread:set(10);
 end
-
-// ⚠️ Legacy (still works, but verbose)
-tasks:pause(taskID);
-tasks:resume(taskID);
-local priority = tasks:getThread(taskID):get();
-tasks:getThread(taskID):set(10);
 ```
 
 ## Performance Tips
@@ -813,98 +802,6 @@ Removes a task from the manager.
 ```lua
 local id = tasks:add(myFunction);
 tasks:remove(id); -- Remove task
-```
-
----
-
-### Task Control (Compatibility Methods)
-
-These methods provide backward compatibility. **Recommended:** Use `thread` methods directly via `getThread(id)`.
-
-#### `tasks:pause(id)`
-
-Pauses a running task (compatibility method).
-
-**Parameters:**
-- `id` (number): Task ID to pause
-
-**Returns:** `boolean` - `true` if paused, `false` if not found or already paused
-
-**Recommended Alternative:**
-```lua
--- Preferred approach
-local thread = tasks:getThread(taskID);
-if thread then thread:pause(); end
-
--- Compatibility approach
-tasks:pause(taskID);
-```
-
----
-
-#### `tasks:resume(id)`
-
-Resumes a paused task (compatibility method).
-
-**Parameters:**
-- `id` (number): Task ID to resume
-
-**Returns:** `boolean` - `true` if resumed, `false` if not found or not paused
-
-**Recommended Alternative:**
-```lua
--- Preferred approach
-local thread = tasks:getThread(taskID);
-if thread then thread:resume(); end
-
--- Compatibility approach
-tasks:resume(taskID);
-```
-
----
-
-#### `tasks:isPaused(id)`
-
-Checks if a task is paused (compatibility method).
-
-**Parameters:**
-- `id` (number): Task ID to check
-
-**Returns:** `boolean` - `true` if paused, `false` otherwise
-
-**Recommended Alternative:**
-```lua
--- Preferred approach
-local thread = tasks:getThread(taskID);
-if thread then
-    local paused = thread:isPaused();
-end
-
--- Compatibility approach
-local paused = tasks:isPaused(taskID);
-```
-
----
-
-#### `tasks:isStarted(id)`
-
-Checks if a task has started (compatibility method).
-
-**Parameters:**
-- `id` (number): Task ID to check
-
-**Returns:** `boolean` - `true` if started, `false` otherwise
-
-**Recommended Alternative:**
-```lua
--- Preferred approach
-local thread = tasks:getThread(taskID);
-if thread then
-    local started = thread:isStarted();
-end
-
--- Compatibility approach
-local started = tasks:isStarted(taskID);
 ```
 
 ---
