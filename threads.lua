@@ -24,11 +24,17 @@ local THREADS_PRIORITYS = {
 ---@alias ThreadsType 'concurrent' | 'sequential'
 ---@alias ThreadsPriority 'low' | 'normal' | 'high' | 'extreme'
 
+---@class ThreadOptions
+---@field priority number
+
 ---@class Thread
 ---@field routine thread
 ---@field arguments table<any>
 ---@field paused boolean
 ---@field started boolean
+---@field priority? number
+---@field get fun(self: Thread): number
+---@field set fun(self: Thread, priority: number): boolean
 
 ---@class Threads
 ---@field threads table<number, Thread>
@@ -37,7 +43,7 @@ local THREADS_PRIORITYS = {
 ---@field type ThreadsType
 ---@field priority ThreadsPriority
 ---@field timer userdata | nil
----@field add fun(self: Threads, func: fun(self: Threads, ...: any): any, ...: any): number
+---@field add fun(self: Threads, func: fun(self: Threads, ...: any): any, options: ThreadOptions, ...: any): number
 ---@field remove fun(self: Threads, id: number): boolean
 ---@field clear fun(self: Threads): boolean
 ---@field start fun(self: Threads): boolean
@@ -71,9 +77,11 @@ Threads = {
 
 	---@param self Threads
 	---@param func fun(self: Threads, ...: any): any
+	---@param options ThreadOptions
 	---@param ... any
 	---@return number
-	add = function (self, func, ...)
+	add = function (self, func, options, ...)
+		options = (options or { });
 		---@type Thread
 		local thread = {
 			routine = coroutine.create (func),
@@ -81,6 +89,32 @@ Threads = {
 
 			paused = false,
 			started = false,
+
+			priority = options.priority or -1,
+
+			---@param self Thread
+			---@return number
+			get = function (self)
+				return self.priority;
+			end,
+
+			---@param self Thread
+			---@param priority number
+			---@return boolean
+			set = function (self, priority)
+				priority = tonumber (priority);
+				if (not priority) then
+					return false;
+				end
+
+				local current = self:get ();
+				if (current == priority) then
+					return false;
+				end
+
+				self.priority = priority;
+				return true;
+			end,
 		};
 
 		local newId = (self.nextId + 1);
