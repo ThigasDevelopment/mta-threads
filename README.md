@@ -20,13 +20,15 @@ A lightweight **coroutine-based async task system** for MTA:SA servers. Distribu
 ## Features
 
 - ✅ **Three execution modes**: Concurrent (interleaved), Sequential (queue-based), and Priority-based
-- ✅ **Priority system**: Low, Normal, High, Extreme with configurable performance profiles
+- ✅ **Priority system**: Low, Normal, High, Extreme manager priorities with configurable performance profiles
 - ✅ **Per-thread priority**: Assign individual priorities (1-10) to threads in priority mode
-- ✅ **Dynamic priority adjustment**: Change thread priorities at runtime via `thread:set()`
-- ✅ **Direct thread access**: Get thread objects with `getThread()` for fine-grained control
-- ✅ **Task control**: Pause, resume, and remove tasks dynamically
+- ✅ **Object-oriented thread control**: Direct thread access via `getThread()` for fine-grained control
+- ✅ **Thread methods**: Control threads with `thread:pause()`, `thread:resume()`, `thread:set()`, etc.
+- ✅ **Dynamic priority adjustment**: Change thread priorities at runtime via `thread:set(priority)`
+- ✅ **Task management**: Add, remove, pause, and resume tasks dynamically
 - ✅ **Simple API**: Easy to use with coroutines and sleep helpers
 - ✅ **Error handling**: Automatic error catching and cleanup
+- ✅ **Backward compatibility**: Legacy `tasks:pause(id)` methods still work
 
 ## Installation
 
@@ -35,6 +37,30 @@ A lightweight **coroutine-based async task system** for MTA:SA servers. Distribu
 3. Start using threads in your code!
 
 ## Basic Usage
+
+### Quick Start
+
+```lua
+-- 1. Create a task manager
+local tasks = Threads.new('concurrent', 'normal');
+
+-- 2. Add a task
+local taskID = tasks:add(function(self)
+    for i = 1, 100 do
+        print('Processing ' .. i);
+        sleep(100); -- Yield control
+    end
+end, {priority = 5}); -- Optional: only used in 'priority' mode
+
+-- 3. Control the thread
+local thread = tasks:getThread(taskID);
+if thread then
+    thread:pause();     -- Pause execution
+    thread:resume();    -- Resume execution
+    thread:set(10);     -- Change priority
+    print(thread:get()); -- Get priority
+end
+```
 
 ### Creating a Task Manager
 
@@ -49,13 +75,22 @@ local tasks = Threads.new('sequential', 'high');
 ### Adding Tasks
 
 ```lua
+-- Basic task
 tasks:add(function(self)
     for i = 1, 100 do
         print('Processing item ' .. i);
         coroutine.yield(); -- Yield control cooperatively
     end
 end);
+
+-- Task with priority (ONLY works in 'priority' mode)
+tasks:add(function(self)
+    print('High priority task');
+    sleep(100);
+end, {priority = 10}); -- Ignored in 'concurrent' and 'sequential' modes
 ```
+
+**Important:** The `{priority = N}` option only affects execution order when the manager's type is `'priority'`. In `'concurrent'` and `'sequential'` modes, this value is stored but not used for scheduling.
 
 ## Execution Modes
 
@@ -123,6 +158,8 @@ end);
 ### Priority Mode ⭐ NEW
 
 Tasks execute based on **individual priority levels** (1-10) - higher priority threads execute first.
+
+**Important:** Thread priorities (set via `{priority = N}`) are **ONLY used** in this mode. In other modes, all threads are treated equally.
 
 ```lua
 local tasks = Threads.new('priority', 'normal');
@@ -332,6 +369,33 @@ playerUpdates:add(function(self)
 end);
 ```
 
+### Example 8: Pausable Task
+
+```lua
+local tasks = Threads.new('concurrent', 'normal');
+
+local taskID = tasks:add(function(self)
+    for i = 1, 100 do
+        print('Processing:', i);
+        sleep(100);
+    end
+end);
+
+-- Pause on player command
+addCommandHandler('pausetask', function()
+    local thread = tasks:getThread(taskID);
+    if thread then
+        if thread:isPaused() then
+            thread:resume();
+            outputChatBox('Task resumed!');
+        else
+            thread:pause();
+            outputChatBox('Task paused!');
+        end
+    end
+end);
+```
+
 ### Example 9: Priority-Based Combat System ⭐
 
 ```lua
@@ -471,40 +535,70 @@ end);
 
 ## Thread Control
 
-### Pausing and Resuming
+### Getting Thread Object
 
 ```lua
-local threadID = threads:add(function(self)
+local threadID = tasks:add(function(self)
     for i = 1, 100 do
         print('Step ' .. i);
         sleep(100);
     end
-end);
+end, {priority = 5});
 
--- Pause thread
-threads:pause(threadID);
+-- Get the thread object
+local thread = tasks:getThread(threadID);
+```
 
--- Resume later
-threads:resume(threadID);
+### Pausing and Resuming
+
+```lua
+-- Get thread object
+local thread = tasks:getThread(threadID);
+
+if thread then
+    -- Pause thread
+    thread:pause();
+    
+    -- Resume later
+    thread:resume();
+    
+    -- Check if paused
+    if thread:isPaused() then
+        print('Thread is paused');
+    end
+end
+
+-- Alternative: Use Threads methods (compatibility)
+tasks:pause(threadID);
+tasks:resume(threadID);
+```
+
+### Changing Thread Priority
+
+```lua
+local thread = tasks:getThread(threadID);
+
+if thread then
+    -- Get current priority
+    local currentPriority = thread:get();
+    print('Priority:', currentPriority);
+    
+    -- Change priority
+    thread:set(10); -- Set to maximum
+end
 ```
 
 ### Removing Threads
 
 ```lua
-local threadID = threads:add(function(self)
-    -- Long running task
-end);
-
 -- Remove thread if no longer needed
-threads:remove(threadID);
+tasks:remove(threadID);
 ```
 
-### Changing Priority at Runtime
+### Changing Manager Priority
 
 ```lua
 local threads = Threads.new('concurrent', 'normal');
-
--- Start some threads...
 
 -- Switch to high priority for faster processing
 threads:setPriority('high');
@@ -517,6 +611,9 @@ local threads = Threads.new('concurrent');
 
 -- Switch to sequential mode
 threads:setType('sequential');
+
+-- Switch to priority mode
+threads:setType('priority');
 ```
 
 ## Sleep Helper
@@ -540,18 +637,40 @@ end);
 ### ✅ DO
 
 - **Use `coroutine.yield()` or `sleep()` in loops** to prevent blocking
-- **Choose appropriate priority** for your use case
+- **Use thread methods directly** via `getThread()` for cleaner code
+- **Choose appropriate priority** for your use case (manager and thread priorities)
 - **Use sequential mode** for tasks that must complete in order
-- **Use concurrent mode** for independent parallel tasks
+- **Use concurrent mode** for independent tasks
+- **Use priority mode** when you need fine control over execution order
 - **Yield frequently** in heavy computations
 
 ### ❌ DON'T
 
 - **Forget to yield** in long loops (will freeze server!)
-- **Use high/extreme priority** for non-critical background tasks
+- **Use high/extreme manager priority** for non-critical background tasks
 - **Overuse extreme priority** (processes every frame, high CPU usage)
 - **Create thousands of threads** simultaneously (use batching)
 - **Rely on thread execution order** in concurrent mode
+- **Modify thread properties directly** (use methods instead)
+
+### 💡 Recommended API Usage
+
+```lua
+// ✅ Preferred (object-oriented)
+local thread = tasks:getThread(taskID);
+if thread then
+    thread:pause();
+    thread:resume();
+    local priority = thread:get();
+    thread:set(10);
+end
+
+// ⚠️ Legacy (still works, but verbose)
+tasks:pause(taskID);
+tasks:resume(taskID);
+local priority = tasks:getThread(taskID):get();
+tasks:getThread(taskID):set(10);
+```
 
 ## Performance Tips
 
@@ -600,10 +719,11 @@ Adds a new task to the manager.
 - `func` (function): Task function to execute
   - First parameter is always `self` (the Threads instance)
   - Must call `coroutine.yield()` or `sleep()` to cooperate
-- `options` (table, optional): Configuration options (only for 'priority' mode)
+- `options` (table, optional): Configuration options
   - `priority` (number): Thread priority level (1-10, default: 5)
     - Higher values = higher priority
-    - Only applies when execution mode is `'priority'`
+    - **⚠️ ONLY used when manager type is `'priority'`**
+    - Ignored in `'concurrent'` and `'sequential'` modes
 - `...` (any): Additional arguments passed to the function
 
 **Returns:** `number` - Unique task ID
@@ -657,43 +777,139 @@ tasks:remove(id); -- Remove task
 
 ---
 
-### Task Control
+### Task Control (Compatibility Methods)
+
+These methods provide backward compatibility. **Recommended:** Use `thread` methods directly via `getThread(id)`.
 
 #### `tasks:pause(id)`
 
-Pauses a running task.
+Pauses a running task (compatibility method).
 
 **Parameters:**
 - `id` (number): Task ID to pause
 
 **Returns:** `boolean` - `true` if paused, `false` if not found or already paused
 
-**Example:**
+**Recommended Alternative:**
 ```lua
+-- Preferred approach
+local thread = tasks:getThread(taskID);
+if thread then thread:pause(); end
+
+-- Compatibility approach
 tasks:pause(taskID);
--- Task stops executing but remains in queue
 ```
 
 ---
 
 #### `tasks:resume(id)`
 
-Resumes a paused task.
+Resumes a paused task (compatibility method).
 
 **Parameters:**
 - `id` (number): Task ID to resume
 
 **Returns:** `boolean` - `true` if resumed, `false` if not found or not paused
 
-**Example:**
+**Recommended Alternative:**
 ```lua
+-- Preferred approach
+local thread = tasks:getThread(taskID);
+if thread then thread:resume(); end
+
+-- Compatibility approach
 tasks:resume(taskID);
--- Task continues from where it yielded
+```
+
+---
+
+#### `tasks:isPaused(id)`
+
+Checks if a task is paused (compatibility method).
+
+**Parameters:**
+- `id` (number): Task ID to check
+
+**Returns:** `boolean` - `true` if paused, `false` otherwise
+
+**Recommended Alternative:**
+```lua
+-- Preferred approach
+local thread = tasks:getThread(taskID);
+if thread then
+    local paused = thread:isPaused();
+end
+
+-- Compatibility approach
+local paused = tasks:isPaused(taskID);
+```
+
+---
+
+#### `tasks:isStarted(id)`
+
+Checks if a task has started (compatibility method).
+
+**Parameters:**
+- `id` (number): Task ID to check
+
+**Returns:** `boolean` - `true` if started, `false` otherwise
+
+**Recommended Alternative:**
+```lua
+-- Preferred approach
+local thread = tasks:getThread(taskID);
+if thread then
+    local started = thread:isStarted();
+end
+
+-- Compatibility approach
+local started = tasks:isStarted(taskID);
 ```
 
 ---
 
 ### Configuration
+
+#### `tasks:getThread(id)` ⭐
+
+Gets a thread object by its ID, allowing direct access to thread methods.
+
+**Parameters:**
+- `id` (number): Task ID returned by `add()`
+
+**Returns:** `Thread | nil` - Thread object or `nil` if not found
+
+**Available Thread Methods:**
+- `thread:get()` - Get thread priority (1-10)
+- `thread:set(priority)` - Set thread priority (1-10)
+- `thread:pause()` - Pause thread execution
+- `thread:resume()` - Resume paused thread
+- `thread:isPaused()` - Check if thread is paused
+- `thread:isStarted()` - Check if thread has started
+
+**Note:** See "Thread Class Reference" section for detailed documentation of each method.
+
+**Example:**
+```lua
+local taskID = tasks:add(myFunction, {priority = 5});
+local thread = tasks:getThread(taskID);
+
+if thread then
+    -- Priority management
+    print('Priority:', thread:get());
+    thread:set(9);
+    
+    -- State control
+    thread:pause();
+    print('Paused:', thread:isPaused());
+    thread:resume();
+else
+    print('Thread not found');
+end
+```
+
+---
 
 #### `tasks:setType(type)`
 
@@ -729,78 +945,20 @@ print('Current mode: ' .. mode);
 
 ---
 
-#### `tasks:getThread(id)` ⭐
-
-Gets a thread object by its ID, allowing direct access to thread methods.
-
-**Parameters:**
-- `id` (number): Task ID returned by `add()`
-
-**Returns:** `Thread | nil` - Thread object or `nil` if not found
-
-**Thread Methods:**
-- `thread:get()` - Get thread priority (1-10)
-- `thread:set(priority)` - Set thread priority (1-10)
-
-**Note:** Thread methods are primarily useful in `'priority'` mode.
-
-**Examples:**
-```lua
-local taskID = tasks:add(myFunction, {priority = 5});
-
--- Get the thread object
-local thread = tasks:getThread(taskID);
-
-if thread then
-    -- Get current priority
-    local currentPriority = thread:get();
-    print('Current priority:', currentPriority); -- 5
-    
-    -- Change priority
-    thread:set(9); -- Increase to high priority
-    print('New priority:', thread:get()); -- 9
-    
-    -- Lower priority
-    thread:set(2);
-else
-    print('Thread not found');
-end
-```
-
-**Practical Usage:**
-```lua
--- Dynamic priority adjustment
-local renderTask = tasks:add(renderFunction, {priority = 5});
-
-addEventHandler('onPlayerDamage', root, function()
-    -- Boost render priority during combat
-    local thread = tasks:getThread(renderTask);
-    if thread then thread:set(10); end
-end);
-
-addEventHandler('onCombatEnd', root, function()
-    -- Return to normal priority
-    local thread = tasks:getThread(renderTask);
-    if thread then thread:set(5); end
-end);
-```
-
----
-
 #### `tasks:setPriority(priority)`
 
-Changes the priority level at runtime.
+Changes the manager's priority level (execution speed) at runtime.
 
 **Parameters:**
 - `priority` (string): Performance profile
-  - `'low'` - Less frequent, fewer frames
-  - `'normal'` - Balanced
-  - `'high'` - More frequent, more frames
-  - `'extreme'` - Every frame, maximum frames
+  - `'low'` - 250ms ticks, 8 frames/tick
+  - `'normal'` - 100ms ticks, 15 frames/tick
+  - `'high'` - 50ms ticks, 25 frames/tick
+  - `'extreme'` - 0ms ticks (every frame), 50 frames/tick
 
 **Returns:** `boolean` - `true` if changed, `false` if invalid or same as current
 
-**Note:** Automatically restarts the internal timer with new settings.
+**Note:** This affects ALL threads in the manager. Automatically restarts the internal timer.
 
 **Example:**
 ```lua
@@ -839,7 +997,7 @@ tasks:clear(); -- Remove all tasks
 
 ## Thread Class Reference
 
-The `Thread` class represents an individual task/coroutine within the thread manager. Thread objects are obtained via `tasks:getThread(id)` and provide methods for priority management.
+The `Thread` class represents an individual task/coroutine within the thread manager. Thread objects are obtained via `tasks:getThread(id)` and provide methods for priority management and state control.
 
 ### Thread Properties
 
@@ -853,7 +1011,7 @@ Thread objects contain the following internal properties (read-only, for informa
 | `started` | boolean | Whether the thread has begun execution |
 | `priority` | number | Thread priority level (1-10, used in 'priority' mode) |
 
-**Note:** These properties should not be accessed directly. Use thread methods instead.
+**Note:** These properties should not be modified directly. Use thread methods instead.
 
 ---
 
@@ -867,7 +1025,8 @@ Gets the priority level of the thread.
 
 **Returns:** `number` - Priority level (1-10)
 - Higher values = higher priority
-- Only meaningful in `'priority'` execution mode
+- **⚠️ Only affects execution in `'priority'` mode**
+- In other modes, value is stored but not used for scheduling
 
 **Example:**
 ```lua
@@ -896,20 +1055,17 @@ Sets the priority level of the thread at runtime.
 - `true` if priority was changed
 - `false` if invalid priority or unchanged
 
-**Note:** Priority changes take effect immediately in `'priority'` mode. In other modes, priority is stored but not used.
+**⚠️ Important:** Priority changes **ONLY affect execution** in `'priority'` mode. In `'concurrent'` and `'sequential'` modes, the value is stored but threads are not scheduled based on priority.
 
-**Examples:**
+**Example:**
 ```lua
-local taskID = tasks:add(updateFunction, {priority = 5});
 local thread = tasks:getThread(taskID);
 
--- Increase priority during critical moment
 if thread then
-    thread:set(10); -- Boost to maximum
-end
-
--- Later, return to normal
-if thread then
+    -- Increase priority
+    thread:set(10);
+    
+    -- Check if changed
     local success = thread:set(5);
     if success then
         print('Priority changed to 5');
@@ -917,9 +1073,110 @@ if thread then
 end
 ```
 
-**Practical Example - Dynamic Priority:**
+---
+
+#### `thread:pause()`
+
+Pauses the thread execution.
+
+**Parameters:** None
+
+**Returns:** `boolean`
+- `true` if thread was paused
+- `false` if already paused
+
+**Note:** Paused threads remain in the manager but do not execute until resumed.
+
+**Example:**
 ```lua
--- Create a rendering task with medium priority
+local thread = tasks:getThread(taskID);
+
+if thread then
+    thread:pause();
+    print('Thread paused');
+end
+```
+
+---
+
+#### `thread:resume()`
+
+Resumes a paused thread.
+
+**Parameters:** None
+
+**Returns:** `boolean`
+- `true` if thread was resumed
+- `false` if not paused
+
+**Example:**
+```lua
+local thread = tasks:getThread(taskID);
+
+if thread then
+    thread:resume();
+    print('Thread resumed');
+end
+```
+
+---
+
+#### `thread:isPaused()`
+
+Checks if the thread is currently paused.
+
+**Parameters:** None
+
+**Returns:** `boolean` - `true` if paused, `false` otherwise
+
+**Example:**
+```lua
+local thread = tasks:getThread(taskID);
+
+if thread then
+    if thread:isPaused() then
+        print('Thread is paused');
+    else
+        print('Thread is running');
+    end
+end
+```
+
+---
+
+#### `thread:isStarted()`
+
+Checks if the thread has started execution.
+
+**Parameters:** None
+
+**Returns:** `boolean` - `true` if started, `false` if not yet executed
+
+**Note:** A thread is marked as started after its first coroutine resume.
+
+**Example:**
+```lua
+local thread = tasks:getThread(taskID);
+
+if thread then
+    if thread:isStarted() then
+        print('Thread has executed at least once');
+    else
+        print('Thread has not started yet');
+    end
+end
+```
+
+---
+
+### Practical Thread Examples
+
+#### Example: Dynamic Priority Adjustment
+
+```lua
+local tasks = Threads.new('priority', 'normal');
+
+-- Create rendering task
 local renderID = tasks:add(function(self)
     while true do
         drawCustomUI();
@@ -928,19 +1185,87 @@ local renderID = tasks:add(function(self)
 end, {priority = 5});
 
 -- Boost priority during combat
-addEventHandler('onClientRender', root, function()
-    if isPlayerInCombat() then
-        local thread = tasks:getThread(renderID);
-        if thread and thread:get() ~= 10 then
-            thread:set(10); -- Critical priority
-        end
-    else
-        local thread = tasks:getThread(renderID);
-        if thread and thread:get() ~= 5 then
-            thread:set(5); -- Normal priority
-        end
+addEventHandler('onPlayerDamage', root, function()
+    local thread = tasks:getThread(renderID);
+    if thread and thread:get() ~= 10 then
+        thread:set(10); -- Critical priority
+        print('Boosted render priority');
     end
 end);
+
+-- Return to normal after combat
+addEventHandler('onCombatEnd', root, function()
+    local thread = tasks:getThread(renderID);
+    if thread and thread:get() ~= 5 then
+        thread:set(5); -- Normal priority
+        print('Reset render priority');
+    end
+end);
+```
+
+#### Example: Pausable Task with Status Check
+
+```lua
+local tasks = Threads.new('concurrent', 'normal');
+
+local processingID = tasks:add(function(self)
+    for i = 1, 1000 do
+        processData(i);
+        sleep(10);
+    end
+    print('Processing complete!');
+end);
+
+-- Command to toggle pause
+addCommandHandler('toggle', function()
+    local thread = tasks:getThread(processingID);
+    
+    if not thread then
+        outputChatBox('Task not found!');
+        return
+    end
+    
+    if thread:isStarted() then
+        if thread:isPaused() then
+            thread:resume();
+            outputChatBox('Task resumed');
+        else
+            thread:pause();
+            outputChatBox('Task paused');
+        end
+    else
+        outputChatBox('Task has not started yet');
+    end
+end);
+```
+
+#### Example: Priority Manager
+
+```lua
+local tasks = Threads.new('priority', 'normal');
+
+-- Create multiple tasks with different priorities
+local tasks = {
+    low = tasks:add(backgroundWork, {priority = 2}),
+    med = tasks:add(gameLogic, {priority = 5}),
+    high = tasks:add(criticalSystem, {priority = 10}),
+};
+
+-- Function to adjust all priorities
+function adjustPriorities(factor)
+    for name, id in pairs(taskIDs) do
+        local thread = tasks:getThread(id);
+        if thread then
+            local current = thread:get();
+            local newPriority = math.min(10, math.max(1, current * factor));
+            thread:set(newPriority);
+            print(name .. ' priority: ' .. current .. ' -> ' .. newPriority);
+        end
+    end
+end
+
+-- Boost all priorities during high load
+adjustPriorities(1.5);
 ```
 
 ---
