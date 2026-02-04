@@ -16,6 +16,7 @@ A powerful asynchronous iteration library for Multi Theft Auto (MTA) San Andreas
   - [Creating an Async Instance](#creating-an-async-instance)
   - [Iterate Method](#iterate-method)
   - [Foreach Method](#foreach-method)
+  - [Map Method](#map-method)
   - [Interval Configuration](#interval-configuration)
 - [API Reference](#api-reference)
 - [Examples](#examples)
@@ -137,6 +138,39 @@ async:foreach(players,
 )
 ```
 
+### Map Method
+
+The `map` method allows you to iterate over arrays asynchronously, similar to `foreach` but specifically designed for indexed arrays (using `ipairs`):
+
+```lua
+async:map(array, func, callback)
+```
+
+**Parameters:**
+- `array` (table): The array to iterate over (indexed table)
+- `func` (function): Function to execute for each element (receives value and index)
+- `callback` (function, optional): Function called when iteration completes (receives elapsed time in ms)
+
+**Example:**
+
+```lua
+local async = Async.new(100)
+
+local numbers = {10, 20, 30, 40, 50}
+
+-- Process each number in the array
+async:map(numbers,
+    function(value, index)
+        -- This runs for each array element
+        outputDebugString("Index " .. index .. ": " .. value)
+    end,
+    function(elapsed)
+        -- This runs when complete
+        outputDebugString("Array processed in " .. elapsed .. "ms")
+    end
+)
+```
+
 ### Interval Configuration
 
 You can get or set the interval between iterations:
@@ -186,6 +220,18 @@ Performs an asynchronous table iteration.
 - **Parameters:**
   - `object` (table): Table to iterate
   - `func` (function): Function called for each element `func(value, key)`
+  - `callback` (function, optional): Completion callback `callback(elapsed)`
+- **Returns:** Task reference
+
+---
+
+### `async:map(array, func, callback)`
+
+Performs an asynchronous array iteration using `ipairs`.
+
+- **Parameters:**
+  - `array` (table): Array to iterate (indexed table)
+  - `func` (function): Function called for each element `func(value, index)`
   - `callback` (function, optional): Completion callback `callback(elapsed)`
 - **Returns:** Task reference
 
